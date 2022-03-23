@@ -6,7 +6,6 @@
 
 #include <array>
 #include <exception>
-#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -30,7 +29,6 @@
 
 constexpr float PHONEME_LENGTH_MINIMAL = 0.01f;
 
-namespace fs = std::filesystem;
 constexpr std::array<int64_t, 0> scalar_shape{};
 constexpr std::array<int64_t, 1> speaker_shape{1};
 
@@ -38,7 +36,7 @@ static std::string error_message;
 static bool initialized = false;
 static std::string supported_devices_str;
 
-bool open_models(const fs::path &yukarin_s_path, const fs::path &yukarin_sa_path, const fs::path &decode_path,
+bool open_models(const std::string yukarin_s_path, const std::string yukarin_sa_path, const std::string decode_path,
                  std::vector<unsigned char> &yukarin_s_model, std::vector<unsigned char> &yukarin_sa_model,
                  std::vector<unsigned char> &decode_model) {
   std::ifstream yukarin_s_file(yukarin_s_path, std::ios::binary), yukarin_sa_file(yukarin_sa_path, std::ios::binary),
@@ -65,7 +63,7 @@ bool open_models(const fs::path &yukarin_s_path, const fs::path &yukarin_sa_path
  *  version: string
  * }]
  */
-bool open_metas(const fs::path &metas_path, nlohmann::json &metas) {
+bool open_metas(const std::string metas_path, nlohmann::json &metas) {
   std::ifstream metas_file(metas_path);
   if (!metas_file.is_open()) {
     error_message = FAILED_TO_OPEN_METAS_ERR;
@@ -97,18 +95,33 @@ SupportedDevices get_supported_devices() {
 
 struct Status {
   Status(const char *root_dir_path_utf8, bool use_gpu_)
-      : root_dir_path(root_dir_path_utf8),
-        use_gpu(use_gpu_),
+      : use_gpu(use_gpu_),
         memory_info(Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU)),
         yukarin_s(nullptr),
         yukarin_sa(nullptr),
-        decode(nullptr) {}
+        decode(nullptr) {
+    // 扱いやすくするために、パスを正規化(スラッシュで終わるようにし、バックスラッシュもスラッシュで統一)
+    std::string temp_root_dir_path(root_dir_path_utf8);
+    std::vector<std::string> split_path;
+
+    std::string item;
+    for (char ch : temp_root_dir_path) {
+      if (ch == '/' || ch == '\\') {
+        if (!item.empty()) split_path.push_back(item);
+        item.clear();
+      } else {
+        item += ch;
+      }
+    }
+    if (!item.empty()) split_path.push_back(item);
+    if (temp_root_dir_path[0] == '/') {
+      root_dir_path = "/";
+    }
+    std::for_each(split_path.begin(), split_path.end(), [&](std::string path) { root_dir_path += path + "/"; });
+  }
 
   bool load(int cpu_num_threads) {
-    // deprecated in C++20; Use char8_t for utf-8 char in the future.
-    fs::path root = fs::u8path(root_dir_path);
-
-    if (!open_metas(root / "metas.json", metas)) {
+    if (!open_metas(root_dir_path + "metas.json", metas)) {
       return false;
     }
     metas_str = metas.dump();
@@ -120,8 +133,8 @@ struct Status {
     }
 
     std::vector<unsigned char> yukarin_s_model, yukarin_sa_model, decode_model;
-    if (!open_models(root / "yukarin_s.onnx", root / "yukarin_sa.onnx", root / "decode.onnx", yukarin_s_model,
-                     yukarin_sa_model, decode_model)) {
+    if (!open_models(root_dir_path + "yukarin_s.onnx", root_dir_path + "yukarin_sa.onnx", root_dir_path + "decode.onnx",
+                     yukarin_s_model, yukarin_sa_model, decode_model)) {
       return false;
     }
     Ort::SessionOptions session_options;
