@@ -13,9 +13,9 @@
 
 #include "nlohmann/json.hpp"
 
-#ifndef VOICEVOX_CORE_EXPORTS
-#define VOICEVOX_CORE_EXPORTS
-#endif  // VOICEVOX_CORE_EXPORTS
+#ifndef SHAREVOX_CORE_EXPORTS
+#define SHAREVOX_CORE_EXPORTS
+#endif  // SHAREVOX_CORE_EXPORTS
 #include "core.h"
 
 #define NOT_INITIALIZED_ERR "Call initialize() first."

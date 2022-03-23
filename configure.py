@@ -151,9 +151,9 @@ def download_and_extract_dml(link):
             f'powershell -Command "cd {tmp_dir}; Expand-Archive -Path archive.zip; Copy-Item archive -Recurse {project_root}/directml"')
 
 
-def get_voicevox_download_link(version) -> str:
+def get_sharevox_download_link(version) -> str:
     target_release = get_release(
-        "https://api.github.com/repos/VOICEVOX/voicevox_core/releases", version
+        "https://api.github.com/repos/SHAREVOX/sharevox_core/releases", version
     )
     assets = target_release["assets"]
     for asset in assets:
@@ -161,17 +161,17 @@ def get_voicevox_download_link(version) -> str:
             return asset["browser_download_url"]
     raise RuntimeError(
         f"Asset was not found. Most likely the version is too old or new that {__file__} does not support. "
-        "Try `--voicevox_download_link` option to manually specify the download link."
+        "Try `--sharevox_download_link` option to manually specify the download link."
     )
 
 
-def download_and_extract_voicevox(download_link):
+def download_and_extract_sharevox(download_link):
     if (project_root / "release").exists():
         print(
-            "Skip downloading voicevox release because release directory already exists."
+            "Skip downloading sharevox release because release directory already exists."
         )
         return
-    print(f"Downloading voicevox from {download_link}...")
+    print(f"Downloading sharevox from {download_link}...")
     with tempfile.TemporaryDirectory() as tmp_dir:
         if os_name == "Windows":
             run_subprocess(
@@ -256,12 +256,12 @@ def link_files(use_directml: bool):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--voicevox_version",
+        "--sharevox_version",
         default="0.10.0",
-        help="voicevox release tag found in https://github.com/VOICEVOX/voicevox_core/releases",
+        help="sharevox release tag found in https://github.com/SHAREVOX/sharevox_core/releases",
     )
-    parser.add_argument("--voicevox_download_link",
-                        help="voicevox download link")
+    parser.add_argument("--sharevox_download_link",
+                        help="sharevox download link")
     parser.add_argument(
         "--ort_version",
         default="v1.10.0",
@@ -298,11 +298,11 @@ if __name__ == "__main__":
 
     download_and_extract_ort(ort_download_link)
 
-    voicevox_download_link = args.voicevox_download_link
-    if not voicevox_download_link:
-        voicevox_download_link = get_voicevox_download_link(
-            args.voicevox_version)
-    download_and_extract_voicevox(voicevox_download_link)
+    sharevox_download_link = args.sharevox_download_link
+    if not sharevox_download_link:
+        sharevox_download_link = get_sharevox_download_link(
+            args.sharevox_version)
+    download_and_extract_sharevox(sharevox_download_link)
 
     if args.use_directml:
         dml_download_link = args.dml_download_link

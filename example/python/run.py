@@ -1,7 +1,7 @@
 import argparse
 from typing import Optional
 
-import core
+import sharevox_core as core
 import soundfile
 
 from forwarder import Forwarder

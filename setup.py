@@ -23,7 +23,7 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(base_dir, 'tests'))
 
     setup(
-        name="core",
+        name="sharevox_core",
         version=get_version(),
         packages=["core"],
         package_data={

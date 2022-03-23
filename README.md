@@ -1,11 +1,11 @@
-# VOICEVOX CORE
+# SHAREVOX Core
 
-[VOICEVOX](https://voicevox.hiroshiba.jp/) の音声合成コア。  
-[Releases](https://github.com/VOICEVOX/voicevox_core/releases) にビルド済みのコアライブラリ（.so/.dll/.dylib）があります。
+[SHAREVOX](https://sharevox.app/) の音声合成コア。  
+[Releases](https://github.com/SHAREVOX/sharevox_core/releases) にビルド済みのコアライブラリ（.so/.dll/.dylib）があります。
 
-（エディターは [VOICEVOX](https://github.com/VOICEVOX/voicevox/) 、
-エンジンは [VOICEVOX ENGINE](https://github.com/VOICEVOX/voicevox_engine/) 、
-全体構成は [こちら](https://github.com/VOICEVOX/voicevox/blob/main/docs/%E5%85%A8%E4%BD%93%E6%A7%8B%E6%88%90.md) に詳細があります。）
+（エディターは [SHAREVOX](https://github.com/SHAREVOX/sharevox/) 、
+エンジンは [SHAREVOX ENGINE](https://github.com/SHAREVOX/sharevox_engine/) 、
+全体構成は [こちら](https://github.com/SHAREVOX/sharevox/blob/main/docs/%E5%85%A8%E4%BD%93%E6%A7%8B%E6%88%90.md) に詳細があります。）
 
 ## 環境構築
 configure.pyを用いて環境構築を行う場合
@@ -45,7 +45,7 @@ Raspberry Pi 用の ONNX Runtime は以下からダウンロードできます�
 
 ### コアライブラリのダウンロードと配置
 
-まず [Releases](https://github.com/VOICEVOX/voicevox_core/releases) からコアライブラリが入った zip をダウンロードしておきます。
+まず [Releases](https://github.com/SHAREVOX/sharevox_core/releases) からコアライブラリが入った zip をダウンロードしておきます。
 
 1. まずReleasesからダウンロードしたコアライブラリのzipを、`release`というディレクトリ名で展開する。
 2. `core/lib/`ディレクトリを作成する。
@@ -82,11 +82,11 @@ python configure.py --use_directml
 ```
 を実行する必要があります
 
-MacOSの場合、CUDA の macOS サポートは現在終了しているため、VOICEVOX CORE の macOS 向けコアライブラリも CUDA, CUDNN を利用しない CPU 版のみの提供となります。
+MacOSの場合、CUDA の macOS サポートは現在終了しているため、SHAREVOX Core の macOS 向けコアライブラリも CUDA, CUDNN を利用しない CPU 版のみの提供となります。
 
 #### Raspberry Piでの使用について
 
-Raspberry PiなどのarmhアーキテクチャPCでの使用では、環境構築時に https://github.com/VOICEVOX/onnxruntime-builder/releases にある独自ビルドのonnxruntimeを使用する必要があります。
+Raspberry PiなどのarmhアーキテクチャPCでの使用では、環境構築時に https://github.com/VOICEVOX/onnxruntime-builder/releases にあるVOICEVOX公式によるビルドのonnxruntimeを使用する必要があります。
 そのため、環境にあったファイルのURLを取得し、上記例の代わりに
 ```bash
 python configure.py --ort_download_link <独自ビルドonnxruntimeのURL>
@@ -129,7 +129,7 @@ python run.py \
 
 ## コアライブラリのビルド
 
-[Releases](https://github.com/Hiroshiba/voicevox_core/releases) にあるビルド済みのコアライブラリを利用せず、自分で一からビルドする場合こちらを参照してください。ビルドにはONNXRUNTIMEに加えてCMake 3.16以上が必要です。
+[Releases](https://github.com/SHAREVOX/sharevox_core/releases) にあるビルド済みのコアライブラリを利用せず、自分で一からビルドする場合こちらを参照してください。ビルドにはONNXRUNTIMEに加えてCMake 3.16以上が必要です。
    
 modelフォルダにあるonnxモデルはダミーのため、ノイズの混じった音声が出力されます
 
@@ -161,13 +161,8 @@ python run.py \
     --root_dir_path="../../model"
 ```
 
-## 事例紹介
-
-**[VOICEVOX ENGINE SHARP](https://github.com/yamachu/VoicevoxEngineSharp) [@yamachu](https://github.com/yamachu)** ･･･ VOICEVOX ENGINE の C# 実装  
-**[Node VOICEVOX Engine](https://github.com/y-chan/node-voicevox-engine) [@y-chan](https://github.com/y-chan)** ･･･ VOICEVOX ENGINE の Node.js/C++ 実装
-
 ## ライセンス
 
 ソースコードのライセンスは [MIT LICENSE](./LICENSE) です。
 
-[Releases](https://github.com/VOICEVOX/voicevox_core/releases) にあるビルド済みのコアライブラリは別ライセンスなのでご注意ください。
+[Releases](https://github.com/SHAREVOX/sharevox_core/releases) にあるビルド済みのコアライブラリは別ライセンスなのでご注意ください。
