@@ -27,7 +27,8 @@
 #define GPU_NOT_SUPPORTED_ERR "This library is CPU version. GPU is not supported."
 #define UNKNOWN_STYLE "Unknown style ID: "
 
-constexpr float PHONEME_LENGTH_MINIMAL = 0.01f;
+// constexpr float PHONEME_LENGTH_MINIMAL = 0.01f;
+constexpr int64_t hidden_size = 256;
 
 constexpr std::array<int64_t, 0> scalar_shape{};
 constexpr std::array<int64_t, 1> speaker_shape{1};
@@ -36,19 +37,20 @@ static std::string error_message;
 static bool initialized = false;
 static std::string supported_devices_str;
 
-bool open_models(const std::string yukarin_s_path, const std::string yukarin_sa_path, const std::string decode_path,
-                 std::vector<unsigned char> &yukarin_s_model, std::vector<unsigned char> &yukarin_sa_model,
-                 std::vector<unsigned char> &decode_model) {
-  std::ifstream yukarin_s_file(yukarin_s_path, std::ios::binary), yukarin_sa_file(yukarin_sa_path, std::ios::binary),
-      decode_file(decode_path, std::ios::binary);
-  if (!yukarin_s_file.is_open() || !yukarin_sa_file.is_open() || !decode_file.is_open()) {
+bool open_models(const std::string variance_model_path, const std::string embedder_model_path,
+                 const std::string decoder_model_path, std::vector<unsigned char> &variance_model,
+                 std::vector<unsigned char> &embedder_model, std::vector<unsigned char> &decoder_model) {
+  std::ifstream variance_model_file(variance_model_path, std::ios::binary),
+      embedder_model_file(embedder_model_path, std::ios::binary),
+      decoder_model_file(decoder_model_path, std::ios::binary);
+  if (!variance_model_file.is_open() || !embedder_model_file.is_open() || !decoder_model_file.is_open()) {
     error_message = FAILED_TO_OPEN_MODEL_ERR;
     return false;
   }
 
-  yukarin_s_model = std::vector<unsigned char>(std::istreambuf_iterator<char>(yukarin_s_file), {});
-  yukarin_sa_model = std::vector<unsigned char>(std::istreambuf_iterator<char>(yukarin_sa_file), {});
-  decode_model = std::vector<unsigned char>(std::istreambuf_iterator<char>(decode_file), {});
+  variance_model = std::vector<unsigned char>(std::istreambuf_iterator<char>(variance_model_file), {});
+  embedder_model = std::vector<unsigned char>(std::istreambuf_iterator<char>(embedder_model_file), {});
+  decoder_model = std::vector<unsigned char>(std::istreambuf_iterator<char>(decoder_model_file), {});
   return true;
 }
 
@@ -97,9 +99,9 @@ struct Status {
   Status(const char *root_dir_path_utf8, bool use_gpu_)
       : use_gpu(use_gpu_),
         memory_info(Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU)),
-        yukarin_s(nullptr),
-        yukarin_sa(nullptr),
-        decode(nullptr) {
+        variance(nullptr),
+        embedder(nullptr),
+        decoder(nullptr) {
     // 扱いやすくするために、パスを正規化(スラッシュで終わるようにし、バックスラッシュもスラッシュで統一)
     std::string temp_root_dir_path(root_dir_path_utf8);
     std::vector<std::string> split_path;
@@ -132,15 +134,15 @@ struct Status {
       }
     }
 
-    std::vector<unsigned char> yukarin_s_model, yukarin_sa_model, decode_model;
-    if (!open_models(root_dir_path + "yukarin_s.onnx", root_dir_path + "yukarin_sa.onnx", root_dir_path + "decode.onnx",
-                     yukarin_s_model, yukarin_sa_model, decode_model)) {
+    std::vector<unsigned char> variance_model, embedder_model, decoder_model;
+    if (!open_models(root_dir_path + "variance_model.onnx", root_dir_path + "embedder_model.onnx",
+                     root_dir_path + "decoder_model.onnx", variance_model, embedder_model, decoder_model)) {
       return false;
     }
     Ort::SessionOptions session_options;
     session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
-    yukarin_s = Ort::Session(env, yukarin_s_model.data(), yukarin_s_model.size(), session_options);
-    yukarin_sa = Ort::Session(env, yukarin_sa_model.data(), yukarin_sa_model.size(), session_options);
+    variance = Ort::Session(env, variance_model.data(), variance_model.size(), session_options);
+    embedder = Ort::Session(env, embedder_model.data(), embedder_model.size(), session_options);
     if (use_gpu) {
 #ifdef DIRECTML
       session_options.DisableMemPattern().SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
@@ -150,7 +152,7 @@ struct Status {
       session_options.AppendExecutionProvider_CUDA(cuda_options);
 #endif
     }
-    decode = Ort::Session(env, decode_model.data(), decode_model.size(), session_options);
+    decoder = Ort::Session(env, decoder_model.data(), decoder_model.size(), session_options);
     return true;
   }
 
@@ -159,7 +161,7 @@ struct Status {
   Ort::MemoryInfo memory_info;
 
   Ort::Env env{ORT_LOGGING_LEVEL_ERROR};
-  Ort::Session yukarin_s, yukarin_sa, decode;
+  Ort::Session variance, embedder, decoder;
 
   nlohmann::json metas;
   std::string metas_str;
@@ -241,7 +243,8 @@ const char *supported_devices() {
   return supported_devices_str.c_str();
 }
 
-bool yukarin_s_forward(int64_t length, int64_t *phoneme_list, int64_t *speaker_id, float *output) {
+bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, int64_t *speaker_id, float *pitch_output,
+                      float *duration_output) {
   if (!initialized) {
     error_message = NOT_INITIALIZED_ERR;
     return false;
@@ -250,67 +253,47 @@ bool yukarin_s_forward(int64_t length, int64_t *phoneme_list, int64_t *speaker_i
     return false;
   }
   try {
-    const char *inputs[] = {"phoneme_list", "speaker_id"};
-    const char *outputs[] = {"phoneme_length"};
-    const std::array<int64_t, 1> phoneme_shape{length};
+    const char *inputs[] = {"phonemes", "accents", "speakers"};
+    const char *outputs[] = {"log_pitches", "log_durations"};
+    const std::array<int64_t, 1> input_shape{length};
 
-    std::array<Ort::Value, 2> input_tensors = {to_tensor(phoneme_list, phoneme_shape),
+    std::array<Ort::Value, 3> input_tensors = {to_tensor(phonemes, input_shape), to_tensor(accents, input_shape),
                                                to_tensor(speaker_id, speaker_shape)};
-    Ort::Value output_tensor = to_tensor(output, phoneme_shape);
+    std::array<Ort::Value, 2> output_tensors = {to_tensor(pitch_output, input_shape),
+                                                to_tensor(duration_output, input_shape)};
 
-    status->yukarin_s.Run(Ort::RunOptions{nullptr}, inputs, input_tensors.data(), input_tensors.size(), outputs,
-                          &output_tensor, 1);
+    status->variance.Run(Ort::RunOptions{nullptr}, inputs, input_tensors.data(), input_tensors.size(), outputs,
+                         output_tensors.data(), output_tensors.size());
 
-    for (int64_t i = 0; i < length; i++) {
-      if (output[i] < PHONEME_LENGTH_MINIMAL) output[i] = PHONEME_LENGTH_MINIMAL;
+    // for (int64_t i = 0; i < length; i++) {
+    //   if (pitch_output[i] < PHONEME_LENGTH_MINIMAL) pitch_output[i] = PHONEME_LENGTH_MINIMAL;
+    // }
+  } catch (const Ort::Exception &e) {
+    error_message = ONNX_ERR;
+    error_message += e.what();
+    return false;
+  }
+
+  return true;
+}
+
+std::vector<float> length_regulator(int64_t length, const std::vector<float>& embedded_vector, const float *durations) {
+  std::vector<float> length_regulated_vector;
+  for (int64_t i = 0; i < length; i++) {
+    auto regulation_size = (int64_t)(durations[i] * 256.0f);
+    size_t start = length_regulated_vector.size();
+    length_regulated_vector.resize(start + (regulation_size * hidden_size));
+    for (int64_t j = 0; j < regulation_size * hidden_size;) {
+      for (int64_t k = 0; k < hidden_size; k++) {
+        length_regulated_vector[start + j + k] = embedded_vector[i + k];
+      }
+      j += hidden_size;
     }
-  } catch (const Ort::Exception &e) {
-    error_message = ONNX_ERR;
-    error_message += e.what();
-    return false;
   }
-
-  return true;
+  return length_regulated_vector;
 }
 
-bool yukarin_sa_forward(int64_t length, int64_t *vowel_phoneme_list, int64_t *consonant_phoneme_list,
-                        int64_t *start_accent_list, int64_t *end_accent_list, int64_t *start_accent_phrase_list,
-                        int64_t *end_accent_phrase_list, int64_t *speaker_id, float *output) {
-  if (!initialized) {
-    error_message = NOT_INITIALIZED_ERR;
-    return false;
-  }
-  if (!validate_speaker_id(*speaker_id)) {
-    return false;
-  }
-  try {
-    const char *inputs[] = {
-        "length",          "vowel_phoneme_list",       "consonant_phoneme_list", "start_accent_list",
-        "end_accent_list", "start_accent_phrase_list", "end_accent_phrase_list", "speaker_id"};
-    const char *outputs[] = {"f0_list"};
-    const std::array<int64_t, 1> phoneme_shape{length};
-
-    std::array<Ort::Value, 8> input_tensors = {to_tensor(&length, scalar_shape),
-                                               to_tensor(vowel_phoneme_list, phoneme_shape),
-                                               to_tensor(consonant_phoneme_list, phoneme_shape),
-                                               to_tensor(start_accent_list, phoneme_shape),
-                                               to_tensor(end_accent_list, phoneme_shape),
-                                               to_tensor(start_accent_phrase_list, phoneme_shape),
-                                               to_tensor(end_accent_phrase_list, phoneme_shape),
-                                               to_tensor(speaker_id, speaker_shape)};
-    Ort::Value output_tensor = to_tensor(output, phoneme_shape);
-
-    status->yukarin_sa.Run(Ort::RunOptions{nullptr}, inputs, input_tensors.data(), input_tensors.size(), outputs,
-                           &output_tensor, 1);
-  } catch (const Ort::Exception &e) {
-    error_message = ONNX_ERR;
-    error_message += e.what();
-    return false;
-  }
-  return true;
-}
-
-bool decode_forward(int64_t length, int64_t phoneme_size, float *f0, float *phoneme, int64_t *speaker_id,
+bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *durations, int64_t *speaker_id,
                     float *output) {
   if (!initialized) {
     error_message = NOT_INITIALIZED_ERR;
@@ -320,22 +303,33 @@ bool decode_forward(int64_t length, int64_t phoneme_size, float *f0, float *phon
     return false;
   }
   try {
-    const std::array<int64_t, 2> f0_shape{length, 1}, phoneme_shape{length, phoneme_size};
+    const std::array<int64_t, 1> input_shape{length};
+    const std::vector<float> embedded_vector(length * hidden_size);
+    const std::array<int64_t, 2> embedded_shape{length, hidden_size};
 
-    std::array<Ort::Value, 3> input_tensor = {to_tensor(f0, f0_shape),
-                                              to_tensor(phoneme, phoneme_shape),
+    std::array<Ort::Value, 3> input_tensor = {to_tensor(phonemes, input_shape), to_tensor(pitches, input_shape),
                                               to_tensor(speaker_id, speaker_shape)};
+    Ort::Value embedder_tensor = to_tensor(embedded_vector.data(), embedded_shape);
+    const char *embedder_inputs[] = {"phonemes", "pitches", "speaker"};
+    const char *embedder_outputs[] = {"feature_embedded"};
 
-    const auto output_size = length * 256;
+    status->embedder.Run(Ort::RunOptions{nullptr}, embedder_inputs, input_tensor.data(), input_tensor.size(),
+                         embedder_outputs, &embedder_tensor, 1);
+
+    std::vector<float> length_regulated_vector = length_regulator(length, embedded_vector, durations);
+    const int64_t new_length = length_regulated_vector.size();
+    const int64_t output_size = new_length; // hidden_size / wav frame size
+    const std::array<int64_t, 2> length_regulated_shape{new_length, hidden_size};
     const std::array<int64_t, 1> wave_shape{output_size};
 
+    Ort::Value length_regulated_tensor = to_tensor(length_regulated_vector.data(), length_regulated_shape);
     Ort::Value output_tensor = to_tensor(output, wave_shape);
 
-    const char *inputs[] = {"f0", "phoneme", "speaker_id"};
-    const char *outputs[] = {"wave"};
+    const char *decoder_inputs[] = {"feature_embedded"};
+    const char *decoder_outputs[] = {"wave"};
 
-    status->decode.Run(Ort::RunOptions{nullptr}, inputs, input_tensor.data(), input_tensor.size(), outputs,
-                       &output_tensor, 1);
+    status->decoder.Run(Ort::RunOptions{nullptr}, decoder_inputs, &length_regulated_tensor, 1, decoder_outputs,
+                        &output_tensor, 1);
 
   } catch (const Ort::Exception &e) {
     error_message = ONNX_ERR;

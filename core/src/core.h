@@ -74,46 +74,29 @@ SHAREVOX_CORE_API const char *supported_devices();
 
 /**
  * @fn
- * 音素ごとの長さを求める
- * @brief 音素列から、音素ごとの長さを求める
- * @param length 音素列の長さ
- * @param phoneme_list 音素列
+ * 音素ごとの音高と長さを求める
+ * @brief 音素列とアクセント列から、音素ごとの音高と長さを求める
+ * @param length 音素列・アクセント列の長さ
+ * @param phonemes 音素列
+ * @param accents アクセント列
  * @param speaker_id 話者番号
- * @return 音素ごとの長さ
+ * @return 音素ごとの長さ・モーラごとの音高
  */
-SHAREVOX_CORE_API bool yukarin_s_forward(int64_t length, int64_t *phoneme_list, int64_t *speaker_id, float *output);
-
-/**
- * @fn
- * モーラごとの音高を求める
- * @brief モーラごとの音素列とアクセント情報から、モーラごとの音高を求める
- * @param length モーラ列の長さ
- * @param vowel_phoneme_list 母音の音素列
- * @param consonant_phoneme_list 子音の音素列
- * @param start_accent_list アクセントの開始位置
- * @param end_accent_list アクセントの終了位置
- * @param start_accent_phrase_list アクセント句の開始位置
- * @param end_accent_phrase_list アクセント句の終了位置
- * @param speaker_id 話者番号
- * @return モーラごとの音高
- */
-SHAREVOX_CORE_API bool yukarin_sa_forward(int64_t length, int64_t *vowel_phoneme_list, int64_t *consonant_phoneme_list,
-                                          int64_t *start_accent_list, int64_t *end_accent_list,
-                                          int64_t *start_accent_phrase_list, int64_t *end_accent_phrase_list,
-                                          int64_t *speaker_id, float *output);
+SHAREVOX_CORE_API bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, int64_t *speaker_id,
+                                        float *pitch_output, float *duration_output);
 
 /**
  * @fn
  * 波形を求める
- * @brief フレームごとの音素と音高から、波形を求める
- * @param length フレームの長さ
- * @param phoneme_size 音素の種類数
- * @param f0 フレームごとの音高
- * @param phoneme フレームごとの音素
+ * @brief 音素と音素ごとの音高・長さから、波形を求める
+ * @param length 音素列の長さ
+ * @param phonemes 音素列
+ * @param pitches 音素ごとの音高
+ * @param durations 音素ごとの長さ
  * @param speaker_id 話者番号
  * @return 音声波形
  */
-SHAREVOX_CORE_API bool decode_forward(int64_t length, int64_t phoneme_size, float *f0, float *phoneme,
+SHAREVOX_CORE_API bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *durations,
                                       int64_t *speaker_id, float *output);
 
 /**
