@@ -29,12 +29,25 @@ std::vector<MoraModel> to_flatten_moras(std::vector<AccentPhraseModel> accent_ph
   return flatten_moras;
 }
 
-std::vector<OjtPhoneme> to_phoneme_data_list(std::vector<std::string> phoneme_str_list) {
+std::vector<int64_t> to_phoneme_id_list(std::vector<std::string> phoneme_str_list) {
   std::vector<OjtPhoneme> phoneme_data_list;
+  std::vector<int64_t> phoneme_id_list;
   for (size_t i = 0; i < phoneme_str_list.size(); i++) {
     phoneme_data_list.push_back(OjtPhoneme(phoneme_str_list[i], (float)i, (float)i + 1.0f));
   }
-  return OjtPhoneme::convert(phoneme_data_list);
+  phoneme_data_list = OjtPhoneme::convert(phoneme_data_list);
+  for (OjtPhoneme phoneme_data : phoneme_data_list) {
+    phoneme_id_list.push_back(phoneme_data.phoneme_id());
+  }
+  return phoneme_id_list;
+}
+
+std::vector<int64_t> to_accent_id_list(std::vector<std::string> accent_str_list) {
+  std::vector<int64_t> accent_id_list;
+  for (std::string accent_str : accent_str_list) {
+    accent_id_list.push_back(Accent(accent_str).accent_id());
+  }
+  return accent_id_list;
 }
 
 void split_mora(std::vector<OjtPhoneme> phoneme_list, std::vector<OjtPhoneme> &consonant_phoneme_list,
@@ -173,26 +186,23 @@ std::vector<AccentPhraseModel> SynthesisEngine::create_accent_phrases(std::strin
 
 std::vector<AccentPhraseModel> SynthesisEngine::replace_mora_data(std::vector<AccentPhraseModel> accent_phrases,
                                                                   int64_t *speaker_id) {
-  return replace_mora_pitch(replace_phoneme_length(accent_phrases, speaker_id), speaker_id);
+  std::vector<float> pitches;
+  std::vector<AccentPhraseModel> changed_accent_phrases = replace_phoneme_length(accent_phrases, speaker_id, pitches);
+  return replace_mora_pitch(changed_accent_phrases, speaker_id);
 }
 
 std::vector<AccentPhraseModel> SynthesisEngine::replace_phoneme_length(std::vector<AccentPhraseModel> accent_phrases,
-                                                                       int64_t *speaker_id) {
+                                                                       int64_t *speaker_id,
+                                                                       std::vector<float> &pitches) {
   std::vector<MoraModel> flatten_moras;
-  std::vector<std::string> phoneme_str_list;
-  std::vector<OjtPhoneme> phoneme_data_list;
-  initial_process(accent_phrases, flatten_moras, phoneme_str_list, phoneme_data_list);
+  std::vector<int64_t> phoneme_id_list;
+  std::vector<int64_t> accent_id_list;
+  initial_process(accent_phrases, flatten_moras, phoneme_id_list, accent_id_list);
 
-  std::vector<OjtPhoneme> consonant_phoneme_list;
-  std::vector<OjtPhoneme> vowel_phoneme_list;
-  std::vector<int64_t> vowel_indexes_data;
-  split_mora(phoneme_data_list, consonant_phoneme_list, vowel_phoneme_list, vowel_indexes_data);
-
-  std::vector<int64_t> phoneme_list_s;
-  for (OjtPhoneme phoneme_data : phoneme_data_list) phoneme_list_s.push_back(phoneme_data.phoneme_id());
-  std::vector<float> phoneme_length(phoneme_list_s.size(), 0.0);
-  bool success = yukarin_s_forward((int64_t)phoneme_list_s.size(), (int64_t *)phoneme_list_s.data(), speaker_id,
-                                   phoneme_length.data());
+  std::vector<float> phoneme_length(phoneme_id_list.size(), 0.0);
+  pitches.resize(phoneme_id_list.size());
+  bool success = variance_forward((int64_t)phoneme_id_list.size(), phoneme_id_list.data(), accent_id_list.data(),
+                                  speaker_id, pitches.data(), phoneme_length.data());
 
   if (!success) {
     throw std::runtime_error(last_error_message());
@@ -203,18 +213,19 @@ std::vector<AccentPhraseModel> SynthesisEngine::replace_phoneme_length(std::vect
     AccentPhraseModel accent_phrase = accent_phrases[i];
     std::vector<MoraModel> moras = accent_phrase.moras;
     for (size_t j = 0; j < moras.size(); j++) {
-      MoraModel mora = moras[j];
-      if (mora.consonant != std::nullopt) {
-        mora.consonant_length = phoneme_length[vowel_indexes_data[index + 1] - 1];
+      MoraModel mora = moras[i];
+      if (mora.consonant.has_value()) {
+        mora.consonant_length = phoneme_length[index];
+        index++;
       }
-      mora.vowel_length = phoneme_length[vowel_indexes_data[index + 1]];
+      mora.vowel_length = phoneme_length[index];
       index++;
       moras[j] = mora;
     }
     accent_phrase.moras = moras;
-    if (accent_phrase.pause_mora != std::nullopt) {
+    if (accent_phrase.pause_mora.has_value()) {
       std::optional<MoraModel> pause_mora = accent_phrase.pause_mora;
-      pause_mora->vowel_length = phoneme_length[vowel_indexes_data[index + 1]];
+      pause_mora->vowel_length = phoneme_length[index];
       index++;
       accent_phrase.pause_mora = pause_mora;
     }
@@ -225,78 +236,26 @@ std::vector<AccentPhraseModel> SynthesisEngine::replace_phoneme_length(std::vect
 }
 
 std::vector<AccentPhraseModel> SynthesisEngine::replace_mora_pitch(std::vector<AccentPhraseModel> accent_phrases,
-                                                                   int64_t *speaker_id) {
+                                                                   int64_t *speaker_id, float *before_pitches) {
   std::vector<MoraModel> flatten_moras;
-  std::vector<std::string> phoneme_str_list;
-  std::vector<OjtPhoneme> phoneme_data_list;
-  initial_process(accent_phrases, flatten_moras, phoneme_str_list, phoneme_data_list);
+  std::vector<int64_t> phoneme_id_list;
+  std::vector<int64_t> accent_id_list;
+  initial_process(accent_phrases, flatten_moras, phoneme_id_list, accent_id_list);
 
-  std::vector<int64_t> base_start_accent_list;
-  std::vector<int64_t> base_end_accent_list;
-  std::vector<int64_t> base_start_accent_phrase_list;
-  std::vector<int64_t> base_end_accent_phrase_list;
+  int64_t length = phoneme_id_list.size();
+  std::vector<float> pitches(length, 0);
+  if (before_pitches != nullptr) {
+    std::vector<float> durations(length, 0);
+    bool success = variance_forward((int64_t)phoneme_id_list.size(), phoneme_id_list.data(), accent_id_list.data(),
+                                    speaker_id, pitches.data(), durations.data());
 
-  base_start_accent_list.push_back(0);
-  base_end_accent_list.push_back(0);
-  base_start_accent_phrase_list.push_back(0);
-  base_end_accent_phrase_list.push_back(0);
-  for (AccentPhraseModel accent_phrase : accent_phrases) {
-    unsigned int accent = accent_phrase.accent == 1 ? 0 : 1;
-    create_one_accent_list(base_start_accent_list, accent_phrase, (int)accent);
-
-    accent = accent_phrase.accent - 1;
-    create_one_accent_list(base_end_accent_list, accent_phrase, (int)accent);
-
-    create_one_accent_list(base_start_accent_phrase_list, accent_phrase, 0);
-
-    create_one_accent_list(base_end_accent_phrase_list, accent_phrase, -1);
-  }
-  base_start_accent_list.push_back(0);
-  base_end_accent_list.push_back(0);
-  base_start_accent_phrase_list.push_back(0);
-  base_end_accent_phrase_list.push_back(0);
-
-  std::vector<OjtPhoneme> consonant_phoneme_data_list;
-  std::vector<OjtPhoneme> vowel_phoneme_data_list;
-  std::vector<int64_t> vowel_indexes;
-  split_mora(phoneme_data_list, consonant_phoneme_data_list, vowel_phoneme_data_list, vowel_indexes);
-
-  std::vector<int64_t> consonant_phoneme_list;
-  for (OjtPhoneme consonant_phoneme_data : consonant_phoneme_data_list) {
-    consonant_phoneme_list.push_back(consonant_phoneme_data.phoneme_id());
-  }
-
-  std::vector<int64_t> vowel_phoneme_list;
-  for (OjtPhoneme vowel_phoneme_data : vowel_phoneme_data_list) {
-    vowel_phoneme_list.push_back(vowel_phoneme_data.phoneme_id());
-  }
-
-  std::vector<int64_t> start_accent_list;
-  std::vector<int64_t> end_accent_list;
-  std::vector<int64_t> start_accent_phrase_list;
-  std::vector<int64_t> end_accent_phrase_list;
-
-  for (int64_t vowel_index : vowel_indexes) {
-    start_accent_list.push_back(base_start_accent_list[vowel_index]);
-    end_accent_list.push_back(base_end_accent_list[vowel_index]);
-    start_accent_phrase_list.push_back(base_start_accent_phrase_list[vowel_index]);
-    end_accent_phrase_list.push_back(base_end_accent_phrase_list[vowel_index]);
-  }
-
-  int64_t length = vowel_phoneme_list.size();
-  std::vector<float> f0_list(length, 0);
-  bool success = yukarin_sa_forward(length, vowel_phoneme_list.data(), consonant_phoneme_list.data(),
-                                    start_accent_list.data(), end_accent_list.data(), start_accent_phrase_list.data(),
-                                    end_accent_phrase_list.data(), speaker_id, f0_list.data());
-
-  if (!success) {
-    throw std::runtime_error(last_error_message());
-  }
-
-  for (size_t i = 0; i < vowel_phoneme_data_list.size(); i++) {
-    std::vector<std::string>::iterator found_unvoice_mora = std::find(
-        unvoiced_mora_phoneme_list.begin(), unvoiced_mora_phoneme_list.end(), vowel_phoneme_data_list[i].phoneme);
-    if (found_unvoice_mora != unvoiced_mora_phoneme_list.end()) f0_list[i] = 0;
+    if (!success) {
+      throw std::runtime_error(last_error_message());
+    }
+  } else {
+    for (int64_t i = 0; i < length; i++) {
+      pitches[i] = before_pitches[i];
+    }
   }
 
   int index = 0;
@@ -305,14 +264,21 @@ std::vector<AccentPhraseModel> SynthesisEngine::replace_mora_pitch(std::vector<A
     std::vector<MoraModel> moras = accent_phrase.moras;
     for (size_t j = 0; j < moras.size(); j++) {
       MoraModel mora = moras[j];
-      mora.pitch = f0_list[index + 1];
+      if (mora.consonant.has_value()) index++;
+      std::vector<std::string>::iterator found_unvoice_mora =
+          std::find(unvoiced_mora_phoneme_list.begin(), unvoiced_mora_phoneme_list.end(), mora.vowel);
+      if (found_unvoice_mora != unvoiced_mora_phoneme_list.end()) {
+        mora.pitch = 0.0f;
+      } else {
+        mora.pitch = pitches[index];
+      }
       index++;
       moras[j] = mora;
     }
     accent_phrase.moras = moras;
-    if (accent_phrase.pause_mora != std::nullopt) {
+    if (accent_phrase.pause_mora.has_value()) {
       std::optional<MoraModel> pause_mora = accent_phrase.pause_mora;
-      pause_mora->pitch = f0_list[index + 1];
+      pause_mora->pitch = 0;
       index++;
       accent_phrase.pause_mora = pause_mora;
     }
@@ -420,9 +386,9 @@ std::vector<float> SynthesisEngine::synthesis(AudioQueryModel query, int64_t *sp
     accent_phrases = adjust_interrogative_accent_phrases(accent_phrases);
   }
   std::vector<MoraModel> flatten_moras;
-  std::vector<std::string> phoneme_str_list;
-  std::vector<OjtPhoneme> phoneme_data_list;
-  initial_process(accent_phrases, flatten_moras, phoneme_str_list, phoneme_data_list);
+  std::vector<int64_t> phoneme_id_list;
+  std::vector<int64_t> accent_id_list;
+  initial_process(accent_phrases, flatten_moras, phoneme_id_list, accent_id_list);
 
   float pre_phoneme_length = query.pre_phoneme_length;
   float post_phoneme_length = query.post_phoneme_length;
@@ -431,80 +397,44 @@ std::vector<float> SynthesisEngine::synthesis(AudioQueryModel query, int64_t *sp
   float speed_scale = query.speed_scale;
   float intonation_scale = query.intonation_scale;
 
-  std::vector<float> phoneme_length_list;
-  phoneme_length_list.push_back(pre_phoneme_length);
-
-  std::vector<float> f0_list;
+  std::vector<float> durations;
+  std::vector<float> pitches;
   std::vector<bool> voiced;
-  f0_list.push_back(0.0);
-  voiced.push_back(false);
-  float mean_f0 = 0.0;
+  float mean_pitch = 0.0;
   int count = 0;
 
+  int64_t wave_size;
   for (MoraModel mora : flatten_moras) {
-    if (mora.consonant != std::nullopt) {
-      phoneme_length_list.push_back(static_cast<float>(*mora.consonant_length));
+    if (mora.consonant.has_value()) {
+      float consonant_length = static_cast<float>(*mora.consonant_length);
+      durations.push_back(consonant_length);
+      wave_size += (int64_t)(consonant_length * (float)default_sampling_rate);
     }
-    phoneme_length_list.push_back(mora.vowel_length);
-    float f0_single = mora.pitch * std::pow(2.0f, pitch_scale);
-    f0_list.push_back(f0_single);
-    bool big_than_zero = f0_single > 0.0;
+    float vowel_length = mora.vowel_length;
+    durations.push_back(vowel_length);
+    wave_size += (int64_t)(vowel_length * (float)default_sampling_rate);
+    float pitch = mora.pitch * std::pow(2.0f, pitch_scale);
+    pitches.push_back(pitch);
+    bool big_than_zero = pitch > 0.0;
     voiced.push_back(big_than_zero);
     if (big_than_zero) {
-      mean_f0 += f0_single;
+      mean_pitch += pitch;
       count++;
     }
   }
-  phoneme_length_list.push_back(post_phoneme_length);
-  f0_list.push_back(0.0);
-  mean_f0 /= (float)count;
+  mean_pitch /= (float)count;
 
-  if (!std::isnan(mean_f0)) {
-    for (size_t i = 0; i < f0_list.size(); i++) {
+  if (!std::isnan(mean_pitch)) {
+    for (size_t i = 0; i < pitches.size(); i++) {
       if (voiced[i]) {
-        f0_list[i] = (f0_list[i] - mean_f0) * intonation_scale + mean_f0;
+        pitches[i] = (pitches[i] - mean_pitch) * intonation_scale + mean_pitch;
       }
     }
   }
 
-  std::vector<OjtPhoneme> consonant_phoneme_data_list;
-  std::vector<OjtPhoneme> vowel_phoneme_data_list;
-  std::vector<int64_t> vowel_indexes;
-  split_mora(phoneme_data_list, consonant_phoneme_data_list, vowel_phoneme_data_list, vowel_indexes);
-
-  std::vector<std::vector<float>> phoneme;
-  std::vector<float> f0;
-  float rate = 24000.0 / 256.0;
-  int phoneme_length_sum = 0;
-  int f0_count = 0;
-  int64_t *p_vowel_index = vowel_indexes.data();
-  for (size_t i = 0; i < phoneme_length_list.size(); i++) {
-    int phoneme_length = (int)std::round((std::round(phoneme_length_list[i] * rate) / speed_scale));
-    long phoneme_id = phoneme_data_list[i].phoneme_id();
-    for (int j = 0; j < phoneme_length; j++) {
-      std::vector<float> phonemes_vector(OjtPhoneme::num_phoneme(), 0.0);
-      phonemes_vector[phoneme_id] = 1;
-      phoneme.push_back(phonemes_vector);
-    }
-    phoneme_length_sum += phoneme_length;
-    if ((int64_t)i == *p_vowel_index) {
-      for (long k = 0; k < phoneme_length_sum; k++) {
-        f0.push_back(f0_list[f0_count]);
-      }
-      f0_count++;
-      phoneme_length_sum = 0;
-      p_vowel_index++;
-    }
-  }
-
-  // 2次元のvectorを1次元に変換し、アドレスを連続させる
-  std::vector<float> flatten_phoneme;
-  for (std::vector<float> &p : phoneme) {
-    std::copy(p.begin(), p.end(), std::back_inserter(flatten_phoneme));
-  }
-  std::vector<float> wave(f0.size() * 256, 0.0);
-  bool success = decode_forward((int64_t)f0.size(), OjtPhoneme::num_phoneme(), f0.data(), flatten_phoneme.data(),
-                                speaker_id, wave.data());
+  std::vector<float> wave(wave_size, 0.0);
+  bool success = decode_forward((int64_t)phoneme_id_list.size(), phoneme_id_list.data(), pitches.data(),
+                                durations.data(), speaker_id, wave.data());
 
   if (!success) {
     throw std::runtime_error(last_error_message());
@@ -516,19 +446,48 @@ std::vector<float> SynthesisEngine::synthesis(AudioQueryModel query, int64_t *sp
 void SynthesisEngine::load_openjtalk_dict(const std::string &dict_path) { m_openjtalk.load(dict_path); }
 
 void SynthesisEngine::initial_process(std::vector<AccentPhraseModel> &accent_phrases,
-                                      std::vector<MoraModel> &flatten_moras, std::vector<std::string> &phoneme_str_list,
-                                      std::vector<OjtPhoneme> &phoneme_data_list) {
+                                      std::vector<MoraModel> &flatten_moras, std::vector<int64_t> &phoneme_id_list,
+                                      std::vector<int64_t> &accent_id_list) {
   flatten_moras = to_flatten_moras(accent_phrases);
+  std::vector<std::string> phoneme_str_list;
+  std::vector<std::string> accent_str_list;
 
-  phoneme_str_list.push_back("pau");
   for (MoraModel mora : flatten_moras) {
     std::optional<std::string> consonant = mora.consonant;
     if (consonant != std::nullopt) phoneme_str_list.push_back(static_cast<std::string>(*consonant));
     phoneme_str_list.push_back(mora.vowel);
   }
-  phoneme_str_list.push_back("pau");
+  for (auto accent_phrase : accent_phrases) {
+    for (int64_t i = 0; i < accent_phrase.moras.size(); i++) {
+      MoraModel mora = accent_phrase.moras[i];
+      if (i + 1 == accent_phrase.accent && accent_phrase.moras.size() != accent_phrase.accent) {
+        if (mora.consonant.has_value()) {
+          accent_str_list.push_back("_");
+        }
+        accent_str_list.push_back("]");
+      } else {
+        if (mora.consonant.has_value()) {
+          accent_str_list.push_back("_");
+        }
+        if (i == 0) {
+          accent_str_list.push_back("[");
+        } else {
+          accent_str_list.push_back("_");
+        }
+      }
+    }
+    if (accent_phrase.pause_mora.has_value()) {
+      accent_str_list.push_back("_");
+    }
+    if (accent_phrase.is_interrogative) {
+      accent_str_list[accent_str_list.size() - 1] = "?";
+    } else {
+      accent_str_list[accent_str_list.size() - 1] = "#";
+    }
+  }
 
-  phoneme_data_list = to_phoneme_data_list(phoneme_str_list);
+  phoneme_id_list = to_phoneme_id_list(phoneme_str_list);
+  accent_id_list = to_accent_id_list(accent_str_list);
 }
 
 void SynthesisEngine::create_one_accent_list(std::vector<int64_t> &accent_list, AccentPhraseModel accent_phrase,
