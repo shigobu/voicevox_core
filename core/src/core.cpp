@@ -304,7 +304,7 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
   }
   try {
     const std::array<int64_t, 1> input_shape{length};
-    const std::vector<float> embedded_vector(length * hidden_size);
+    std::vector<float> embedded_vector(length * hidden_size);
     const std::array<int64_t, 2> embedded_shape{length, hidden_size};
 
     std::array<Ort::Value, 3> input_tensor = {to_tensor(phonemes, input_shape), to_tensor(pitches, input_shape),
