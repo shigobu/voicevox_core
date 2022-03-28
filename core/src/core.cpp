@@ -318,7 +318,7 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
 
     std::vector<float> length_regulated_vector = length_regulator(length, embedded_vector, durations);
     const int64_t new_length = length_regulated_vector.size();
-    const int64_t output_size = new_length; // hidden_size / wav frame size
+    const int64_t output_size = new_length;  // hidden_size / wav frame size = 1
     const std::array<int64_t, 2> length_regulated_shape{new_length, hidden_size};
     const std::array<int64_t, 1> wave_shape{output_size};
 
