@@ -206,11 +206,11 @@ bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads) {
     if (use_gpu) {
       // 一回走らせて十分なGPUメモリを確保させる
       int length = 500;
-      int phoneme_size = 45;
-      std::vector<float> phoneme(length * phoneme_size), f0(length);
+      std::vector<int64_t> phoneme(length);
+      std::vector<float> pitches(length), durations(length);
       int64_t speaker_id = 0;
       std::vector<float> output(length * 256);
-      decode_forward(length, phoneme_size, f0.data(), phoneme.data(), &speaker_id, output.data());
+      decode_forward(length, phoneme.data(), pitches.data(), durations.data(), &speaker_id, output.data());
     }
   } catch (const Ort::Exception &e) {
     error_message = ONNX_ERR;
