@@ -254,13 +254,14 @@ bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, int64
   }
   try {
     const char *inputs[] = {"phonemes", "accents", "speakers"};
-    const char *outputs[] = {"log_pitches", "log_durations"};
-    const std::array<int64_t, 1> input_shape{length};
+    const char *outputs[] = {"pitches", "durations"};
+    const std::array<int64_t, 2> input_shape{1, length};
+    const std::array<int64_t, 3> output_shape{1, length, 1};
 
     std::array<Ort::Value, 3> input_tensors = {to_tensor(phonemes, input_shape), to_tensor(accents, input_shape),
                                                to_tensor(speaker_id, speaker_shape)};
-    std::array<Ort::Value, 2> output_tensors = {to_tensor(pitch_output, input_shape),
-                                                to_tensor(duration_output, input_shape)};
+    std::array<Ort::Value, 2> output_tensors = {to_tensor(pitch_output, output_shape),
+                                                to_tensor(duration_output, output_shape)};
 
     status->variance.Run(Ort::RunOptions{nullptr}, inputs, input_tensors.data(), input_tensors.size(), outputs,
                          output_tensors.data(), output_tensors.size());
@@ -303,14 +304,14 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
     return false;
   }
   try {
-    const std::array<int64_t, 1> input_shape{length};
+    const std::array<int64_t, 2> input_shape{1, length};
     std::vector<float> embedded_vector(length * hidden_size);
-    const std::array<int64_t, 2> embedded_shape{length, hidden_size};
+    const std::array<int64_t, 3> embedded_shape{1, length, hidden_size};
 
     std::array<Ort::Value, 3> input_tensor = {to_tensor(phonemes, input_shape), to_tensor(pitches, input_shape),
                                               to_tensor(speaker_id, speaker_shape)};
     Ort::Value embedder_tensor = to_tensor(embedded_vector.data(), embedded_shape);
-    const char *embedder_inputs[] = {"phonemes", "pitches", "speaker"};
+    const char *embedder_inputs[] = {"phonemes", "pitches", "speakers"};
     const char *embedder_outputs[] = {"feature_embedded"};
 
     status->embedder.Run(Ort::RunOptions{nullptr}, embedder_inputs, input_tensor.data(), input_tensor.size(),
@@ -319,14 +320,14 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
     std::vector<float> length_regulated_vector = length_regulator(length, embedded_vector, durations);
     const int64_t new_length = length_regulated_vector.size();
     const int64_t output_size = new_length;  // hidden_size / wav frame size = 1
-    const std::array<int64_t, 2> length_regulated_shape{new_length, hidden_size};
-    const std::array<int64_t, 1> wave_shape{output_size};
+    const std::array<int64_t, 3> length_regulated_shape{1, new_length, hidden_size};
+    const std::array<int64_t, 2> wave_shape{1, output_size};
 
     Ort::Value length_regulated_tensor = to_tensor(length_regulated_vector.data(), length_regulated_shape);
     Ort::Value output_tensor = to_tensor(output, wave_shape);
 
-    const char *decoder_inputs[] = {"feature_embedded"};
-    const char *decoder_outputs[] = {"wave"};
+    const char *decoder_inputs[] = {"length_regulated_tensor"};
+    const char *decoder_outputs[] = {"wav"};
 
     status->decoder.Run(Ort::RunOptions{nullptr}, decoder_inputs, &length_regulated_tensor, 1, decoder_outputs,
                         &output_tensor, 1);
