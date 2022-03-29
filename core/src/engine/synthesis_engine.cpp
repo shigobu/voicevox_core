@@ -188,7 +188,7 @@ std::vector<AccentPhraseModel> SynthesisEngine::replace_mora_data(std::vector<Ac
                                                                   int64_t *speaker_id) {
   std::vector<float> pitches;
   std::vector<AccentPhraseModel> changed_accent_phrases = replace_phoneme_length(accent_phrases, speaker_id, pitches);
-  return replace_mora_pitch(changed_accent_phrases, speaker_id);
+  return replace_mora_pitch(changed_accent_phrases, speaker_id, pitches.data());
 }
 
 std::vector<AccentPhraseModel> SynthesisEngine::replace_phoneme_length(std::vector<AccentPhraseModel> accent_phrases,
@@ -244,7 +244,7 @@ std::vector<AccentPhraseModel> SynthesisEngine::replace_mora_pitch(std::vector<A
 
   int64_t length = phoneme_id_list.size();
   std::vector<float> pitches(length, 0);
-  if (before_pitches != nullptr) {
+  if (before_pitches == nullptr) {
     std::vector<float> durations(length, 0);
     bool success = variance_forward((int64_t)phoneme_id_list.size(), phoneme_id_list.data(), accent_id_list.data(),
                                     speaker_id, pitches.data(), durations.data());
