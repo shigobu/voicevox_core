@@ -213,7 +213,7 @@ std::vector<AccentPhraseModel> SynthesisEngine::replace_phoneme_length(std::vect
     AccentPhraseModel accent_phrase = accent_phrases[i];
     std::vector<MoraModel> moras = accent_phrase.moras;
     for (size_t j = 0; j < moras.size(); j++) {
-      MoraModel mora = moras[i];
+      MoraModel mora = moras[j];
       if (mora.consonant.has_value()) {
         mora.consonant_length = phoneme_length[index];
         index++;
