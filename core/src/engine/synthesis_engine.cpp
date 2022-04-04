@@ -403,7 +403,7 @@ std::vector<float> SynthesisEngine::synthesis(AudioQueryModel query, int64_t *sp
   float mean_pitch = 0.0;
   int count = 0;
 
-  int64_t wave_size;
+  int64_t wave_size = 0;
   for (MoraModel mora : flatten_moras) {
     float pitch = mora.pitch * std::pow(2.0f, pitch_scale);
     pitches.push_back(pitch);
