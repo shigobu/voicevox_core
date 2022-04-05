@@ -286,7 +286,7 @@ std::vector<float> length_regulator(int64_t length, const std::vector<float> &em
     length_regulated_vector.resize(start + (regulation_size * hidden_size));
     for (int64_t j = 0; j < regulation_size * hidden_size;) {
       for (int64_t k = 0; k < hidden_size; k++) {
-        length_regulated_vector[start + j + k] = embedded_vector[i * 256 + k];
+        length_regulated_vector[start + j + k] = embedded_vector[i * hidden_size + k];
       }
       j += hidden_size;
     }
