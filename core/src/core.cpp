@@ -22,6 +22,7 @@
 #define NOT_FOUND_ERR "No such file or directory: "
 #define FAILED_TO_OPEN_MODEL_ERR "Unable to open model files."
 #define FAILED_TO_OPEN_METAS_ERR "Unable to open metas.json."
+#define FAILED_TO_OPEN_LIBRARIES_ERR "Unable to open libraries.json."
 #define ONNX_ERR "ONNX raise exception: "
 #define JSON_ERR "JSON parser raise exception: "
 #define GPU_NOT_SUPPORTED_ERR "This library is CPU version. GPU is not supported."
@@ -75,6 +76,17 @@ bool open_metas(const std::string metas_path, nlohmann::json &metas) {
   return true;
 }
 
+bool open_libraries(const std::string libraries_path, nlohmann::json &libraries) {
+  std::ifstream libraries_file(libraries_path);
+  if (!libraries_file.is_open()) {
+    error_message = FAILED_TO_OPEN_LIBRARIES_ERR;
+    return false;
+  }
+  libraries_file >> libraries;
+  return true;
+}
+
+
 struct SupportedDevices {
   bool cpu = true;
   bool cuda = false;
@@ -123,6 +135,9 @@ struct Status {
   }
 
   bool load(int cpu_num_threads) {
+    if (!open_libraries(root_dir_path + "libraries.json", libraries)) {
+      return false;
+    }
     if (!open_metas(root_dir_path + "metas.json", metas)) {
       return false;
     }
@@ -164,6 +179,7 @@ struct Status {
   Ort::Session variance, embedder, decoder;
 
   nlohmann::json metas;
+  nlohmann::json libraries;
   std::string metas_str;
   std::unordered_set<int64_t> supported_styles;
 };
