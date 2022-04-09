@@ -122,7 +122,7 @@ SHAREVOX_CORE_API SharevoxResultCode sharevox_load_openjtalk_dict(const char *di
  * @param output_wav 音声データを出力する先のポインタ。使用が終わったらvoicevox_wav_freeで開放する必要がある
  * @return 結果コード
  */
-SHAREVOX_CORE_API SharevoxResultCode sharevox_tts(const char *text, int64_t speaker_id, int *output_binary_size,
+SHAREVOX_CORE_API SharevoxResultCode sharevox_tts(const char *text, const char *speaker_id, int *output_binary_size,
                                                   uint8_t **output_wav);
 
 /**
@@ -134,7 +134,7 @@ SHAREVOX_CORE_API SharevoxResultCode sharevox_tts(const char *text, int64_t spea
  * @param output_wav 音声データを出力する先のポインタ。使用が終わったらvoicevox_wav_freeで開放する必要がある
  * @return 結果コード
  */
-SHAREVOX_CORE_API SharevoxResultCode sharevox_tts_from_kana(const char *text, int64_t speaker_id,
+SHAREVOX_CORE_API SharevoxResultCode sharevox_tts_from_kana(const char *text, const char *speaker_id,
                                                             int *output_binary_size, uint8_t **output_wav);
 
 /**

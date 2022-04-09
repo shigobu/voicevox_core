@@ -29,14 +29,14 @@ class SynthesisEngine {
 
   SynthesisEngine() {}
 
-  std::vector<AccentPhraseModel> create_accent_phrases(std::string text, int64_t *speaker_id);
-  std::vector<AccentPhraseModel> replace_mora_data(std::vector<AccentPhraseModel> accent_phrases, int64_t *speaker_id);
+  std::vector<AccentPhraseModel> create_accent_phrases(std::string text, const char *speaker_id);
+  std::vector<AccentPhraseModel> replace_mora_data(std::vector<AccentPhraseModel> accent_phrases, const char *speaker_id);
   std::vector<AccentPhraseModel> replace_phoneme_length(std::vector<AccentPhraseModel> accent_phrases,
-                                                        int64_t *speaker_id, std::vector<float> &pitches);
-  std::vector<AccentPhraseModel> replace_mora_pitch(std::vector<AccentPhraseModel> accent_phrases, int64_t *speaker_id,
+                                                        const char *speaker_id, std::vector<float> &pitches);
+  std::vector<AccentPhraseModel> replace_mora_pitch(std::vector<AccentPhraseModel> accent_phrases, const char *speaker_id,
                                                     float *before_pitches = nullptr);
-  std::vector<float> synthesis(AudioQueryModel query, int64_t *speaker_id, bool enable_interrogative_upspeak = true);
-  std::vector<uint8_t> synthesis_wave_format(AudioQueryModel query, int64_t *speaker_id, int *binary_size,
+  std::vector<float> synthesis(AudioQueryModel query, const char *speaker_id, bool enable_interrogative_upspeak = true);
+  std::vector<uint8_t> synthesis_wave_format(AudioQueryModel query, const char *speaker_id, int *binary_size,
                                              bool enable_interrogative_upspeak = true);
 
   void load_openjtalk_dict(const std::string &dict_path);
