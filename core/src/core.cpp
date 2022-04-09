@@ -27,6 +27,7 @@
 #define JSON_ERR "JSON parser raise exception: "
 #define GPU_NOT_SUPPORTED_ERR "This library is CPU version. GPU is not supported."
 #define UNKNOWN_STYLE "Unknown style ID: "
+#define UNKNOWN_LIBRARIES "Unknown library UUID: "
 
 // constexpr float PHONEME_LENGTH_MINIMAL = 0.01f;
 constexpr int64_t hidden_size = 256;
@@ -141,6 +142,13 @@ struct Status {
     if (!open_metas(root_dir_path + "metas.json", metas)) {
       return false;
     }
+    libraries_str = libraries.dump();
+    usable_libraries.clear();
+    for (auto &library : libraries.items()) {
+      if (library.value().get<bool>()) {
+        usable_libraries.insert(library.key());
+      }
+    }
     metas_str = metas.dump();
     supported_styles.clear();
     for (const auto &meta : metas) {
@@ -178,9 +186,11 @@ struct Status {
   Ort::Env env{ORT_LOGGING_LEVEL_ERROR};
   Ort::Session variance, embedder, decoder;
 
-  nlohmann::json metas;
   nlohmann::json libraries;
+  nlohmann::json metas;
+  std::string libraries_str;
   std::string metas_str;
+  std::unordered_set<std::string> usable_libraries;
   std::unordered_set<int64_t> supported_styles;
 };
 
@@ -198,6 +208,14 @@ Ort::Value to_tensor(T *data, const std::array<int64_t, Rank> &shape) {
 bool validate_speaker_id(int64_t speaker_id) {
   if (status->supported_styles.find(speaker_id) == status->supported_styles.end()) {
     error_message = UNKNOWN_STYLE + std::to_string(speaker_id);
+    return false;
+  }
+  return true;
+}
+
+bool validate_library_uuid(std::string &library_uuid) {
+  if (status->usable_libraries.find(library_uuid) == status->usable_libraries.end()) {
+    error_message = UNKNOWN_LIBRARIES + library_uuid;
     return false;
   }
   return true;
