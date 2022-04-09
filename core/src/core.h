@@ -82,7 +82,7 @@ SHAREVOX_CORE_API const char *supported_devices();
  * @param speaker_id 話者番号
  * @return 音素ごとの長さ・モーラごとの音高
  */
-SHAREVOX_CORE_API bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, int64_t *speaker_id,
+SHAREVOX_CORE_API bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, const char *speaker_id,
                                         float *pitch_output, float *duration_output);
 
 /**
@@ -97,7 +97,7 @@ SHAREVOX_CORE_API bool variance_forward(int64_t length, int64_t *phonemes, int64
  * @return 音声波形
  */
 SHAREVOX_CORE_API bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *durations,
-                                      int64_t *speaker_id, float *output);
+                                      const char *speaker_id, float *output);
 
 /**
  * @fn
