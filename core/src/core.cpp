@@ -326,8 +326,9 @@ bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, const
     return false;
   }
   std::string str_speaker_id(speaker_id);
+  std::pair<std::string, int64_t> library_uuid_and_speaker_num;
   try {
-    auto library_uuid_and_speaker_num = split_library_uuid_and_speaker_num(str_speaker_id);
+    library_uuid_and_speaker_num = split_library_uuid_and_speaker_num(str_speaker_id);
   } catch (std::runtime_error &e) {
     error_message = e.what();
     return false;
@@ -387,8 +388,9 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
     return false;
   }
   std::string str_speaker_id(speaker_id);
+  std::pair<std::string, int64_t> library_uuid_and_speaker_num;
   try {
-    auto library_uuid_and_speaker_num = split_library_uuid_and_speaker_num(str_speaker_id);
+    library_uuid_and_speaker_num = split_library_uuid_and_speaker_num(str_speaker_id);
   } catch (std::runtime_error &e) {
     error_message = e.what();
     return false;
