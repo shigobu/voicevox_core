@@ -49,9 +49,9 @@ struct Models {
 bool open_models(const std::string root_dir_path, const std::string library_uuid,
                  std::vector<unsigned char> &variance_model, std::vector<unsigned char> &embedder_model,
                  std::vector<unsigned char> &decoder_model) {
-  const std::string variance_model_path = root_dir_path + "/" + library_uuid + "/variance_model.onnx";
-  const std::string embedder_model_path = root_dir_path + "/" + library_uuid + "/embedder_model.onnx";
-  const std::string decoder_model_path = root_dir_path + "/" + library_uuid + "/decoder_model.onnx";
+  const std::string variance_model_path = root_dir_path + library_uuid + "/variance_model.onnx";
+  const std::string embedder_model_path = root_dir_path + library_uuid + "/embedder_model.onnx";
+  const std::string decoder_model_path = root_dir_path + library_uuid + "/decoder_model.onnx";
   std::ifstream variance_model_file(variance_model_path, std::ios::binary),
       embedder_model_file(embedder_model_path, std::ios::binary),
       decoder_model_file(decoder_model_path, std::ios::binary);
@@ -78,7 +78,7 @@ bool open_models(const std::string root_dir_path, const std::string library_uuid
  * }]
  */
 bool open_metas(const std::string root_dir_path, const std::string library_uuid, nlohmann::json &metas) {
-  std::ifstream metas_file(root_dir_path + "/" + library_uuid + "/metas.json");
+  std::ifstream metas_file(root_dir_path + library_uuid + "/metas.json");
   if (!metas_file.is_open()) {
     error_message = FAILED_TO_OPEN_METAS_ERR;
     return false;
@@ -87,7 +87,8 @@ bool open_metas(const std::string root_dir_path, const std::string library_uuid,
   return true;
 }
 
-bool open_libraries(const std::string libraries_path, nlohmann::json &libraries) {
+bool open_libraries(const std::string root_dir_path, nlohmann::json &libraries) {
+  std::string libraries_path = root_dir_path + "libraries.json";
   std::ifstream libraries_file(libraries_path);
   if (!libraries_file.is_open()) {
     error_message = FAILED_TO_OPEN_LIBRARIES_ERR;
