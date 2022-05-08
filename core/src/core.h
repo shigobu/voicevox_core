@@ -44,7 +44,11 @@ typedef enum {
  * 何度も実行可能。use_gpuを変更して実行しなおすことも可能。
  * 最後に実行したuse_gpuに従って他の関数が実行される。
  */
-SHAREVOX_CORE_API bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads = 0);
+SHAREVOX_CORE_API bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads
+#ifdef __cplusplus
+                                                = 0
+#endif
+);
 
 /**
  * @fn
