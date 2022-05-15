@@ -2,7 +2,16 @@ cmake_minimum_required(VERSION 3.16)
 project(ShareVoxCore)
 
 # TODO: download onnxruntime
-set(ONNXRUNTIME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime" CACHE PATH "Path to ONNX Runtime")
+set(ONNXRUNTIME_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime"
+    CACHE PATH "Path to ONNX Runtime")
+set(CORE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/core"
+    CACHE PATH "Path to core")
+set(DEPENDENT_DLLS
+    ""
+    CACHE INTERNAL "Dependent DLLs of core.dll")
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(DIRECTML "Enables building for DirectML" OFF)
@@ -16,3 +25,8 @@ endif()
 
 add_subdirectory(core)
 add_subdirectory(open_jtalk/src)
+
+if(BUILD_TEST)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
