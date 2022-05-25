@@ -159,13 +159,15 @@ struct Status {
     Ort::SessionOptions gpu_session_options;
     cpu_session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
     gpu_session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
+    if (use_gpu) {
 #ifdef DIRECTML
-    gpu_session_options.DisableMemPattern().SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
-    Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(gpu_session_options, 0));
+      gpu_session_options.DisableMemPattern().SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(gpu_session_options, 0));
 #else
-    const OrtCUDAProviderOptions cuda_options;
-    gpu_session_options.AppendExecutionProvider_CUDA(cuda_options);
+      const OrtCUDAProviderOptions cuda_options;
+      gpu_session_options.AppendExecutionProvider_CUDA(cuda_options);
 #endif
+    }
 
     nlohmann::json all_metas;
     for (const std::string &library_uuid : usable_libraries) {
@@ -183,8 +185,7 @@ struct Status {
           Models{
               .variance = Ort::Session(env, variance_model.data(), variance_model.size(), cpu_session_options),
               .embedder = Ort::Session(env, variance_model.data(), variance_model.size(), cpu_session_options),
-              .decoder = Ort::Session(env, decoder_model.data(), decoder_model.size(),
-                                      use_gpu ? gpu_session_options : cpu_session_options),
+              .decoder = Ort::Session(env, decoder_model.data(), decoder_model.size(),gpu_session_options),
           }));
       std::unordered_set<int64_t> styles;
       for (const auto &meta : metas) {
