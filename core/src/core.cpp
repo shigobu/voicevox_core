@@ -258,7 +258,7 @@ bool validate_speaker_id(std::string library_uuid, int64_t speaker_id) {
   }
   auto styles = status->supported_styles[library_uuid];
   if (styles.find(speaker_id) == styles.end()) {
-    error_message = UNKNOWN_STYLE + speaker_id;
+    error_message = UNKNOWN_STYLE + std::to_string(speaker_id);
     return false;
   }
   return true;
