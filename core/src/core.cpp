@@ -98,7 +98,6 @@ bool open_libraries(const std::string root_dir_path, nlohmann::json &libraries) 
   return true;
 }
 
-
 struct SupportedDevices {
   bool cpu = true;
   bool cuda = false;

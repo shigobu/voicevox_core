@@ -18,7 +18,8 @@ SharevoxResultCode sharevox_load_openjtalk_dict(const char *dict_path) {
   return SHAREVOX_RESULT_SUCCEED;
 }
 
-SharevoxResultCode sharevox_tts(const char *text, const char *speaker_id, int *output_binary_size, uint8_t **output_wav) {
+SharevoxResultCode sharevox_tts(const char *text, const char *speaker_id, int *output_binary_size,
+                                uint8_t **output_wav) {
   if (!engine.is_openjtalk_dict_loaded()) {
     return SHAREVOX_RESULT_NOT_LOADED_OPENJTALK_DICT;
   }
