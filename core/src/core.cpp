@@ -143,7 +143,7 @@ struct Status {
   }
 
   bool load(int cpu_num_threads) {
-    if (!open_libraries(root_dir_path + "libraries.json", libraries)) {
+    if (!open_libraries(root_dir_path, libraries)) {
       return false;
     }
     libraries_str = libraries.dump();
@@ -184,7 +184,7 @@ struct Status {
           library_uuid,
           Models{
               .variance = Ort::Session(env, variance_model.data(), variance_model.size(), cpu_session_options),
-              .embedder = Ort::Session(env, variance_model.data(), variance_model.size(), cpu_session_options),
+              .embedder = Ort::Session(env, embedder_model.data(), embedder_model.size(), cpu_session_options),
               .decoder = Ort::Session(env, decoder_model.data(), decoder_model.size(),gpu_session_options),
           }));
       std::unordered_set<int64_t> styles;
