@@ -351,9 +351,9 @@ bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, const
     std::array<Ort::Value, 2> output_tensors = {to_tensor(pitch_output, output_shape),
                                                 to_tensor(duration_output, output_shape)};
 
-    status->usable_model_map[library_uuid].variance.Run(Ort::RunOptions{nullptr}, inputs, input_tensors.data(),
-                                                        input_tensors.size(), outputs, output_tensors.data(),
-                                                        output_tensors.size());
+    status->usable_model_map.at(library_uuid)
+        .variance.Run(Ort::RunOptions{nullptr}, inputs, input_tensors.data(), input_tensors.size(), outputs,
+                      output_tensors.data(), output_tensors.size());
 
     // for (int64_t i = 0; i < length; i++) {
     //   if (pitch_output[i] < PHONEME_LENGTH_MINIMAL) pitch_output[i] = PHONEME_LENGTH_MINIMAL;
@@ -413,8 +413,9 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
     const char *embedder_inputs[] = {"phonemes", "pitches", "speakers"};
     const char *embedder_outputs[] = {"feature_embedded"};
 
-    status->usable_model_map[library_uuid].embedder.Run(Ort::RunOptions{nullptr}, embedder_inputs, input_tensor.data(),
-                                                        input_tensor.size(), embedder_outputs, &embedder_tensor, 1);
+    status->usable_model_map.at(library_uuid)
+        .embedder.Run(Ort::RunOptions{nullptr}, embedder_inputs, input_tensor.data(), input_tensor.size(),
+                      embedder_outputs, &embedder_tensor, 1);
 
     std::vector<float> length_regulated_vector = length_regulator(length, embedded_vector, durations);
     const int64_t new_length = length_regulated_vector.size() / 256;
@@ -428,8 +429,9 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
     const char *decoder_inputs[] = {"length_regulated_tensor"};
     const char *decoder_outputs[] = {"wav"};
 
-    status->usable_model_map[library_uuid].decoder.Run(Ort::RunOptions{nullptr}, decoder_inputs,
-                                                       &length_regulated_tensor, 1, decoder_outputs, &output_tensor, 1);
+    status->usable_model_map.at(library_uuid)
+        .decoder.Run(Ort::RunOptions{nullptr}, decoder_inputs, &length_regulated_tensor, 1, decoder_outputs,
+                     &output_tensor, 1);
 
   } catch (const Ort::Exception &e) {
     error_message = ONNX_ERR;
