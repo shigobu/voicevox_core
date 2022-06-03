@@ -33,6 +33,12 @@ lib = cdll.LoadLibrary(str(core_dll_path))
 lib.initialize.argtypes = (c_char_p, c_bool, c_int, c_bool)
 lib.initialize.restype = c_bool
 
+lib.load_model.argtypes = (c_char_p,)
+lib.load_model.restype = c_bool
+
+lib.is_model_loaded.argtypes = (c_char_p,)
+lib.is_model_loaded.restype = c_bool
+
 lib.finalize.argtypes = ()
 
 lib.metas.restype = c_char_p
@@ -49,6 +55,20 @@ lib.decode_forward.restype = c_bool
 
 lib.last_error_message.restype = c_char_p
 
+lib.sharevox_load_openjtalk_dict.argtypes = (c_char_p,)
+lib.sharevox_load_openjtalk_dict.restype = c_int
+
+lib.sharevox_tts.argtypes = (c_char_p, c_char_p, POINTER(c_int), POINTER(POINTER(c_uint8)))
+lib.sharevox_tts.restype = c_int
+
+lib.sharevox_tts_from_kana.argtypes = (c_char_p, c_char_p, POINTER(c_int), POINTER(POINTER(c_uint8)))
+lib.sharevox_tts_from_kana.restype = c_int
+
+lib.sharevox_wav_free.argtypes = (POINTER(c_uint8),)
+
+lib.sharevox_error_result_to_message.argtypes = (c_int,)
+lib.sharevox_load_openjtalk_dict.argtypes = (c_char_p,)
+
 default_sampling_rate = 48000
 
 
@@ -59,6 +79,13 @@ def initialize(root_dir_path: str, use_gpu: bool, cpu_num_threads=0, load_all_mo
     if not success:
         raise Exception(lib.last_error_message().decode())
 
+def load_model(speaker_id: str):
+    success = lib.load_model(speaker_id)
+    if not success:
+        raise Exception(lib.last_error_message().decode())
+
+def is_model_loaded(speaker_id: str) -> bool:
+    return lib.is_model_loaded(speaker_id)
 
 def metas() -> str:
     return lib.metas().decode()
@@ -91,6 +118,32 @@ def decode_forward(length: int, phonemes: array, pitches: array, durations: arra
         raise Exception(lib.last_error_message().decode())
     return output
 
+def sharevox_load_openjtalk_dict(dict_path: str):
+    errno = lib.sharevox_load_openjtalk_dict(dict_path.encode())
+    if errno != 0:
+        raise Exception(lib.sharevox_error_result_to_message(errno).decode())
+
+def sharevox_tts(text: str, speaker_id: str) -> bytes:
+    output_binary_size = c_int()
+    output_wav = POINTER(c_uint8)()
+    errno = lib.sharevox_tts(text.encode(), speaker_id, byref(output_binary_size), byref(output_wav))
+    if errno != 0:
+        raise Exception(lib.sharevox_error_result_to_message(errno).decode())
+    output = create_string_buffer(output_binary_size.value * sizeof(c_uint8))
+    memmove(output, output_wav, output_binary_size.value * sizeof(c_uint8))
+    lib.sharevox_wav_free(output_wav)
+    return output
+
+def sharevox_tts_from_kana(text: str, speaker_id: str) -> bytes:
+    output_binary_size = c_int()
+    output_wav = POINTER(c_uint8)()
+    errno = lib.sharevox_tts_from_kana(text.encode(), speaker_id, byref(output_binary_size), byref(output_wav))
+    if errno != 0:
+        raise Exception(lib.sharevox_error_result_to_message(errno).decode())
+    output = create_string_buffer(output_binary_size.value * sizeof(c_uint8))
+    memmove(output, output_wav, output_binary_size.value * sizeof(c_uint8))
+    lib.sharevox_wav_free(output_wav)
+    return output
 
 def finalize():
     lib.finalize()
