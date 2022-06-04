@@ -147,15 +147,18 @@ struct Status {
     }
     std::for_each(split_path.begin(), split_path.end(), [&](std::string path) { root_dir_path += path + "/"; });
 
-    cpu_session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
-    gpu_session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
+    // 軽いモデルの場合はCPUの方が速い
+    light_session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
+
+    // 重いモデルはGPUを使ったほうが速い
+    heavy_session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
     if (use_gpu) {
 #ifdef DIRECTML
-      gpu_session_options.DisableMemPattern().SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
-      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(gpu_session_options, 0));
+      heavy_session_options.DisableMemPattern().SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(heavy_session_options, 0));
 #else
       const OrtCUDAProviderOptions cuda_options;
-      gpu_session_options.AppendExecutionProvider_CUDA(cuda_options);
+      heavy_session_options.AppendExecutionProvider_CUDA(cuda_options);
 #endif
     }
   }
@@ -206,9 +209,9 @@ struct Status {
 
   void load_model(const std::string &library_uuid) {
     ModelData model_data = usable_model_data_map.at(library_uuid);
-    auto variance = Ort::Session(env, model_data.variance.data(), model_data.variance.size(), cpu_session_options);
-    auto embedder = Ort::Session(env, model_data.embedder.data(), model_data.embedder.size(), cpu_session_options);
-    auto decoder = Ort::Session(env, model_data.decoder.data(), model_data.decoder.size(), gpu_session_options);
+    auto variance = Ort::Session(env, model_data.variance.data(), model_data.variance.size(), light_session_options);
+    auto embedder = Ort::Session(env, model_data.embedder.data(), model_data.embedder.size(), light_session_options);
+    auto decoder = Ort::Session(env, model_data.decoder.data(), model_data.decoder.size(), heavy_session_options);
 
     usable_model_map.insert(std::make_pair(library_uuid, Models{
                                                              std::move(variance),
@@ -219,12 +222,11 @@ struct Status {
   }
 
   std::string root_dir_path;
+  Ort::SessionOptions light_session_options;  // 軽いモデルはこちらを使う
+  Ort::SessionOptions heavy_session_options;  // 重いモデルはこちらを使う
   Ort::MemoryInfo memory_info;
 
   Ort::Env env{ORT_LOGGING_LEVEL_ERROR};
-
-  Ort::SessionOptions cpu_session_options;
-  Ort::SessionOptions gpu_session_options;
 
   nlohmann::json libraries;
   std::string libraries_str;
