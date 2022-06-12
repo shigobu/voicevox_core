@@ -179,13 +179,15 @@ struct Status {
         return false;
       }
 
-      usable_model_map.insert(std::make_pair(
-          library_uuid,
-          Models{
-              .variance = Ort::Session(env, variance_model.data(), variance_model.size(), cpu_session_options),
-              .embedder = Ort::Session(env, embedder_model.data(), embedder_model.size(), cpu_session_options),
-              .decoder = Ort::Session(env, decoder_model.data(), decoder_model.size(),gpu_session_options),
-          }));
+      auto variance = Ort::Session(env, variance_model.data(), variance_model.size(), cpu_session_options);
+      auto embedder = Ort::Session(env, embedder_model.data(), embedder_model.size(), cpu_session_options);
+      auto decoder = Ort::Session(env, decoder_model.data(), decoder_model.size(), gpu_session_options);
+
+      usable_model_map.insert(std::make_pair(library_uuid, Models{
+                                                               std::move(variance),
+                                                               std::move(embedder),
+                                                               std::move(decoder),
+                                                           }));
       std::unordered_set<int64_t> styles;
       for (auto &meta : metas) {
         for (auto &style : meta["styles"]) {
