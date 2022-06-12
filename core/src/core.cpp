@@ -187,11 +187,12 @@ struct Status {
               .decoder = Ort::Session(env, decoder_model.data(), decoder_model.size(),gpu_session_options),
           }));
       std::unordered_set<int64_t> styles;
-      for (const auto &meta : metas) {
-        all_metas.push_back(meta);
-        for (const auto &style : meta["styles"]) {
+      for (auto &meta : metas) {
+        for (auto &style : meta["styles"]) {
           styles.insert(style["id"].get<int64_t>());
+          style["id"] = library_uuid + "_" + std::to_string(style["id"].get<int64_t>());
         }
+        all_metas.push_back(meta);
       }
       supported_styles[library_uuid] = styles;
     }
