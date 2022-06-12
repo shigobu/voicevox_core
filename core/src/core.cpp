@@ -373,11 +373,10 @@ std::vector<float> length_regulator(int64_t length, const std::vector<float> &em
     auto regulation_size = (int64_t)(durations[i] * 187.5);  // 48000 / 256 = 187.5
     size_t start = length_regulated_vector.size();
     length_regulated_vector.resize(start + (regulation_size * hidden_size));
-    for (int64_t j = 0; j < regulation_size * hidden_size;) {
+    for (int64_t j = 0; j < regulation_size * hidden_size; j += hidden_size) {
       for (int64_t k = 0; k < hidden_size; k++) {
         length_regulated_vector[start + j + k] = embedded_vector[i * hidden_size + k];
       }
-      j += hidden_size;
     }
   }
   return length_regulated_vector;
