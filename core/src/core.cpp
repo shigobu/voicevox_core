@@ -283,15 +283,16 @@ bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads) {
     if (!status->load(cpu_num_threads)) {
       return false;
     }
-    if (use_gpu) {
-      // 一回走らせて十分なGPUメモリを確保させる
-      int length = 500;
-      std::vector<int64_t> phoneme(length);
-      std::vector<float> pitches(length), durations(length);
-      std::string speaker_id = "official_0";
-      std::vector<float> output(length * 256);
-      decode_forward(length, phoneme.data(), pitches.data(), durations.data(), speaker_id.c_str(), output.data());
-    }
+    // officialモデルが常にあるとは限らない、0番の情報がmetasにあるとは限らないので実行しない
+    // if (use_gpu) {
+    //   // 一回走らせて十分なGPUメモリを確保させる
+    //   int length = 500;
+    //   std::vector<int64_t> phoneme(length);
+    //   std::vector<float> pitches(length), durations(length);
+    //   std::string speaker_id = "official_0";
+    //   std::vector<float> output(length * 256);
+    //   decode_forward(length, phoneme.data(), pitches.data(), durations.data(), speaker_id.c_str(), output.data());
+    // }
   } catch (const Ort::Exception &e) {
     error_message = ONNX_ERR;
     error_message += e.what();
