@@ -21,21 +21,26 @@ class TestCore(unittest.TestCase):
     def test_invalid_speaker_id(self):
         core.initialize(root_dir, False)
         nil = np.array([], np.int64)
-        nil2 = np.array([[]], np.int64)
-        fnil2 = np.array([[]], np.float32)
-        neg = np.array([-1], np.int64)
+        fnil = np.array([], np.float32)
+        unknown_style1 = "test_-1"
+        unknown_style2 = "test1_-1"
         with self.assertRaisesRegex(Exception, "Unknown style ID: -1"):
-            core.yukarin_s_forward(0, nil, neg)
+            core.variance_forward(0, nil, nil, unknown_style1)
+        with self.assertRaisesRegex(Exception, "Unknown library UUID: test1"):
+            core.variance_forward(0, nil, nil, unknown_style2)
         with self.assertRaisesRegex(Exception, "Unknown style ID: -1"):
-            core.yukarin_sa_forward(
-                0, nil2, nil2, nil2, nil2, nil2, nil2, neg)
-        with self.assertRaisesRegex(Exception, "Unknown style ID: -1"):
-            core.decode_forward(0, 0, fnil2, fnil2, neg)
+            core.decode_forward(0, nil, fnil, fnil, unknown_style1)
+        with self.assertRaisesRegex(Exception, "Unknown library UUID: test1"):
+            core.decode_forward(0, nil, fnil, fnil, unknown_style2)
         core.finalize()
 
     def test_metas(self):
-        with open(os.path.join(root_dir, "metas.json"), encoding="utf-8") as f:
-            metas = json.dumps(json.load(f), sort_keys=True)
+        with open(os.path.join(root_dir, "test", "metas.json"), encoding="utf-8") as f:
+            metas_json = json.load(f)
+            for meta in metas_json:
+                for style in meta["styles"]:
+                    style["id"] = "test_" + str(style["id"])
+            metas = json.dumps(metas_json, sort_keys=True)
         core.initialize(root_dir, False)
         core_metas = json.dumps(json.loads(core.metas()), sort_keys=True)
         core.finalize()
