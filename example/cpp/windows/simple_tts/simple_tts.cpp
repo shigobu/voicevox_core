@@ -28,24 +28,24 @@ int main() {
   std::wcin >> speak_words;
 
   std::wcout << L"coreの初期化中" << std::endl;
-  initialize(false);
+  initialize("../../../model", false);
 
-  VoicevoxResultCode result = VoicevoxResultCode::VOICEVOX_RESULT_SUCCEED;
+  SharevoxResultCode result = SharevoxResultCode::SHAREVOX_RESULT_SUCCEED;
 
   std::wcout << L"openjtalk辞書の読み込み" << std::endl;
-  result = voicevox_load_openjtalk_dict(GetOpenJTalkDict().c_str());
-  if (result != VoicevoxResultCode::VOICEVOX_RESULT_SUCCEED) {
-    std::cout << voicevox_error_result_to_message(result) << std::endl;
+  result = sharevox_load_openjtalk_dict(GetOpenJTalkDict().c_str());
+  if (result != SharevoxResultCode::SHAREVOX_RESULT_SUCCEED) {
+    std::cout << sharevox_error_result_to_message(result) << std::endl;
     return 0;
   }
 
   std::wcout << L"音声生成中" << std::endl;
-  int64_t speaker_id = 0;
+  std::string speaker_id = "test_0";
   int output_binary_size = 0;
   uint8_t* output_wav = nullptr;
-  result = voicevox_tts(wide_to_utf8_cppapi(speak_words).c_str(), speaker_id, &output_binary_size, &output_wav);
-  if (result != VoicevoxResultCode::VOICEVOX_RESULT_SUCCEED) {
-    std::cout << voicevox_error_result_to_message(result) << std::endl;
+  result = sharevox_tts(wide_to_utf8_cppapi(speak_words).c_str(), speaker_id.c_str(), &output_binary_size, &output_wav);
+  if (result != SharevoxResultCode::SHAREVOX_RESULT_SUCCEED) {
+    std::cout << sharevox_error_result_to_message(result) << std::endl;
     return 0;
   }
 
@@ -60,7 +60,7 @@ int main() {
   PlaySound((LPCTSTR)output_wav, nullptr, SND_MEMORY);
 
   std::wcout << L"音声データの開放" << std::endl;
-  voicevox_wav_free(output_wav);
+  sharevox_wav_free(output_wav);
 
 }
 
