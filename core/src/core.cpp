@@ -352,7 +352,7 @@ bool load_model(const char *speaker_id) {
   }
 }
 
-bool is_loaded_model(const char *speaker_id) {
+bool is_model_loaded(const char *speaker_id) {
   std::string str_speaker_id(speaker_id);
   try {
     auto [library_uuid, _] = split_library_uuid_and_speaker_num(str_speaker_id);
@@ -407,7 +407,7 @@ bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, const
     std::array<Ort::Value, 2> output_tensors = {to_tensor(pitch_output, output_shape),
                                                 to_tensor(duration_output, output_shape)};
 
-    if (!is_loaded_model(speaker_id)) {
+    if (!is_model_loaded(speaker_id)) {
       error_message = NOT_LOADED_ERR;
       return false;
     }
@@ -473,7 +473,7 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
     const char *embedder_inputs[] = {"phonemes", "pitches", "speakers"};
     const char *embedder_outputs[] = {"feature_embedded"};
 
-    if (!is_loaded_model(speaker_id)) {
+    if (!is_model_loaded(speaker_id)) {
       error_message = NOT_LOADED_ERR;
       return false;
     }

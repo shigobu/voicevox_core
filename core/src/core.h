@@ -58,6 +58,23 @@ SHAREVOX_CORE_API bool initialize(const char *root_dir_path, bool use_gpu,
 );
 
 /**
+ * モデルをロードする
+ * @param speaker_id 話者番号
+ * @return 成功したらtrue、失敗したらfalse
+ * @detail
+ * 必ずしも話者とモデルが1:1対応しているわけではない。
+ */
+SHAREVOX_CORE_API bool load_model(const char *speaker_id);
+
+/**
+ * @fn
+ * モデルがロード済みかどうか
+ * @param speaker_id 話者番号
+ * @return ロード済みならtrue、そうでないならfalse
+ */
+SHAREVOX_CORE_API bool is_model_loaded(const char *speaker_id);
+
+/**
  * @fn
  * 終了処理を行う
  * @brief 終了処理を行う。以降関数を利用するためには再度初期化を行う必要がある。
