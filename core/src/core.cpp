@@ -23,6 +23,7 @@
 #define FAILED_TO_OPEN_MODEL_ERR "Unable to open model files."
 #define FAILED_TO_OPEN_METAS_ERR "Unable to open metas.json."
 #define FAILED_TO_OPEN_LIBRARIES_ERR "Unable to open libraries.json."
+#define NOT_LOADED_ERR "Model is not loaded."
 #define ONNX_ERR "ONNX raise exception: "
 #define JSON_ERR "JSON parser raise exception: "
 #define GPU_NOT_SUPPORTED_ERR "This library is CPU version. GPU is not supported."
@@ -40,15 +41,21 @@ static std::string error_message;
 static bool initialized = false;
 static std::string supported_devices_str;
 
+struct ModelData {
+  std::vector<unsigned char> variance;
+  std::vector<unsigned char> embedder;
+  std::vector<unsigned char> decoder;
+};
+
 struct Models {
   Ort::Session variance;
   Ort::Session embedder;
   Ort::Session decoder;
 };
 
-bool open_models(const std::string root_dir_path, const std::string library_uuid,
-                 std::vector<unsigned char> &variance_model, std::vector<unsigned char> &embedder_model,
-                 std::vector<unsigned char> &decoder_model) {
+bool open_model_files(const std::string &root_dir_path, const std::string library_uuid,
+                      std::vector<unsigned char> &variance_model, std::vector<unsigned char> &embedder_model,
+                      std::vector<unsigned char> &decoder_model) {
   const std::string variance_model_path = root_dir_path + library_uuid + "/variance_model.onnx";
   const std::string embedder_model_path = root_dir_path + library_uuid + "/embedder_model.onnx";
   const std::string decoder_model_path = root_dir_path + library_uuid + "/decoder_model.onnx";
@@ -119,8 +126,8 @@ SupportedDevices get_supported_devices() {
 }
 
 struct Status {
-  Status(const char *root_dir_path_utf8, bool use_gpu_)
-      : use_gpu(use_gpu_), memory_info(Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU)) {
+  Status(const char *root_dir_path_utf8, bool use_gpu, int cpu_num_threads)
+      : memory_info(Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU)) {
     // 扱いやすくするために、パスを正規化(スラッシュで終わるようにし、バックスラッシュもスラッシュで統一)
     std::string temp_root_dir_path(root_dir_path_utf8);
     std::vector<std::string> split_path;
@@ -139,9 +146,21 @@ struct Status {
       root_dir_path = "/";
     }
     std::for_each(split_path.begin(), split_path.end(), [&](std::string path) { root_dir_path += path + "/"; });
+
+    cpu_session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
+    gpu_session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
+    if (use_gpu) {
+#ifdef DIRECTML
+      gpu_session_options.DisableMemPattern().SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(gpu_session_options, 0));
+#else
+      const OrtCUDAProviderOptions cuda_options;
+      gpu_session_options.AppendExecutionProvider_CUDA(cuda_options);
+#endif
+    }
   }
 
-  bool load(int cpu_num_threads) {
+  bool load() {
     if (!open_libraries(root_dir_path, libraries)) {
       return false;
     }
@@ -154,24 +173,10 @@ struct Status {
     }
     supported_styles.clear();
 
-    Ort::SessionOptions cpu_session_options;
-    Ort::SessionOptions gpu_session_options;
-    cpu_session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
-    gpu_session_options.SetInterOpNumThreads(cpu_num_threads).SetIntraOpNumThreads(cpu_num_threads);
-    if (use_gpu) {
-#ifdef DIRECTML
-      gpu_session_options.DisableMemPattern().SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
-      Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(gpu_session_options, 0));
-#else
-      const OrtCUDAProviderOptions cuda_options;
-      gpu_session_options.AppendExecutionProvider_CUDA(cuda_options);
-#endif
-    }
-
     nlohmann::json all_metas;
     for (const std::string &library_uuid : usable_libraries) {
       std::vector<unsigned char> variance_model, embedder_model, decoder_model;
-      if (!open_models(root_dir_path, library_uuid, variance_model, embedder_model, decoder_model)) {
+      if (!open_model_files(root_dir_path, library_uuid, variance_model, embedder_model, decoder_model)) {
         return false;
       }
       nlohmann::json metas;
@@ -179,15 +184,12 @@ struct Status {
         return false;
       }
 
-      auto variance = Ort::Session(env, variance_model.data(), variance_model.size(), cpu_session_options);
-      auto embedder = Ort::Session(env, embedder_model.data(), embedder_model.size(), cpu_session_options);
-      auto decoder = Ort::Session(env, decoder_model.data(), decoder_model.size(), gpu_session_options);
+      usable_model_data_map.insert(std::make_pair(library_uuid, ModelData{
+                                                                    std::move(variance_model),
+                                                                    std::move(embedder_model),
+                                                                    std::move(decoder_model),
+                                                                }));
 
-      usable_model_map.insert(std::make_pair(library_uuid, Models{
-                                                               std::move(variance),
-                                                               std::move(embedder),
-                                                               std::move(decoder),
-                                                           }));
       std::unordered_set<int64_t> styles;
       for (auto &meta : metas) {
         for (auto &style : meta["styles"]) {
@@ -202,17 +204,34 @@ struct Status {
     return true;
   }
 
+  void load_model(const std::string &library_uuid) {
+    ModelData model_data = usable_model_data_map.at(library_uuid);
+    auto variance = Ort::Session(env, model_data.variance.data(), model_data.variance.size(), cpu_session_options);
+    auto embedder = Ort::Session(env, model_data.embedder.data(), model_data.embedder.size(), cpu_session_options);
+    auto decoder = Ort::Session(env, model_data.decoder.data(), model_data.decoder.size(), gpu_session_options);
+
+    usable_model_map.insert(std::make_pair(library_uuid, Models{
+                                                             std::move(variance),
+                                                             std::move(embedder),
+                                                             std::move(decoder),
+                                                         }));
+    usable_model_data_map.erase(library_uuid);
+  }
+
   std::string root_dir_path;
-  bool use_gpu;
   Ort::MemoryInfo memory_info;
 
   Ort::Env env{ORT_LOGGING_LEVEL_ERROR};
+
+  Ort::SessionOptions cpu_session_options;
+  Ort::SessionOptions gpu_session_options;
 
   nlohmann::json libraries;
   std::string libraries_str;
   std::string metas_str;
   std::unordered_set<std::string> usable_libraries;
   std::map<std::string, std::unordered_set<int64_t>> supported_styles;
+  std::map<std::string, ModelData> usable_model_data_map;
   std::map<std::string, Models> usable_model_map;
 };
 
@@ -267,7 +286,7 @@ bool validate_speaker_id(std::string library_uuid, int64_t speaker_id) {
   return true;
 }
 
-bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads) {
+bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads, bool load_all_models) {
   initialized = false;
 
 #ifdef DIRECTML
@@ -279,9 +298,14 @@ bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads) {
     return false;
   }
   try {
-    status = std::make_unique<Status>(root_dir_path, use_gpu);
-    if (!status->load(cpu_num_threads)) {
+    status = std::make_unique<Status>(root_dir_path, use_gpu, cpu_num_threads);
+    if (!status->load()) {
       return false;
+    }
+    if (load_all_models) {
+      for (const std::string &library_uuid : status->usable_libraries) {
+        status->load_model(library_uuid);
+      }
     }
     // officialモデルが常にあるとは限らない、0番の情報がmetasにあるとは限らないので実行しない
     // if (use_gpu) {
@@ -308,6 +332,33 @@ bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads) {
 
   initialized = true;
   return true;
+}
+
+bool load_model(const char *speaker_id) {
+  std::string str_speaker_id(speaker_id);
+  try {
+    auto [library_uuid, _] = split_library_uuid_and_speaker_num(str_speaker_id);
+    status->load_model(library_uuid);
+    return true;
+  } catch (std::runtime_error &e) {
+    error_message = e.what();
+    return false;
+  } catch (const Ort::Exception &e) {
+    error_message = ONNX_ERR;
+    error_message += e.what();
+    return false;
+  }
+}
+
+bool is_loaded_model(const char *speaker_id) {
+  std::string str_speaker_id(speaker_id);
+  try {
+    auto [library_uuid, _] = split_library_uuid_and_speaker_num(str_speaker_id);
+    return status->usable_model_map.count(library_uuid) > 0;
+  } catch (std::runtime_error &e) {
+    error_message = e.what();
+    return false;
+  }
 }
 
 void finalize() {
@@ -353,6 +404,11 @@ bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, const
                                                to_tensor(&speaker_num, speaker_shape)};
     std::array<Ort::Value, 2> output_tensors = {to_tensor(pitch_output, output_shape),
                                                 to_tensor(duration_output, output_shape)};
+
+    if (!is_loaded_model(speaker_id)) {
+      error_message = NOT_LOADED_ERR;
+      return false;
+    }
 
     status->usable_model_map.at(library_uuid)
         .variance.Run(Ort::RunOptions{nullptr}, inputs, input_tensors.data(), input_tensors.size(), outputs,
@@ -414,6 +470,11 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
     Ort::Value embedder_tensor = to_tensor(embedded_vector.data(), embedded_shape);
     const char *embedder_inputs[] = {"phonemes", "pitches", "speakers"};
     const char *embedder_outputs[] = {"feature_embedded"};
+
+    if (!is_loaded_model(speaker_id)) {
+      error_message = NOT_LOADED_ERR;
+      return false;
+    }
 
     status->usable_model_map.at(library_uuid)
         .embedder.Run(Ort::RunOptions{nullptr}, embedder_inputs, input_tensor.data(), input_tensor.size(),

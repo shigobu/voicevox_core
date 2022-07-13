@@ -39,14 +39,21 @@ typedef enum {
  * @param root_dir_path 必要なファイルがあるディレクトリ。相対パス・絶対パスどちらも指定可能。文字コードはUTF-8
  * @param use_gpu trueならGPU用、falseならCPU用の初期化を行う
  * @param cpu_num_threads 推論に用いるスレッド数を設定する。0の場合論理コア数の半分か、物理コア数が設定される
+ * @param load_all_models trueなら全てのモデルをロードする
  * @return 成功したらtrue、失敗したらfalse
  * @detail
  * 何度も実行可能。use_gpuを変更して実行しなおすことも可能。
  * 最後に実行したuse_gpuに従って他の関数が実行される。
  */
-SHAREVOX_CORE_API bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads
+SHAREVOX_CORE_API bool initialize(const char *root_dir_path, bool use_gpu,
+                                  int cpu_num_threads
 #ifdef __cplusplus
-                                                = 0
+                                  = 0
+#endif
+                                  ,
+                                  bool load_all_models
+#ifdef __cplusplus
+                                  = true
 #endif
 );
 
