@@ -32,7 +32,7 @@
 #define INVALID_SPEAKER_UUID "Invalid format of speaker uuid."
 
 // constexpr float PHONEME_LENGTH_MINIMAL = 0.01f;
-constexpr int64_t hidden_size = 128;
+constexpr int64_t hidden_size = 192;
 
 constexpr std::array<int64_t, 0> scalar_shape{};
 constexpr std::array<int64_t, 1> speaker_shape{1};
