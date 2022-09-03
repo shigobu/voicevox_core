@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <unordered_set>
+#include <iostream>
 
 #include "nlohmann/json.hpp"
 
@@ -28,8 +29,6 @@
 #define JSON_ERR "JSON parser raise exception: "
 #define GPU_NOT_SUPPORTED_ERR "This library is CPU version. GPU is not supported."
 #define UNKNOWN_STYLE "Unknown style ID: "
-#define UNKNOWN_LIBRARIES "Unknown library UUID: "
-#define INVALID_SPEAKER_UUID "Invalid format of speaker uuid."
 
 // constexpr float PHONEME_LENGTH_MINIMAL = 0.01f;
 constexpr int64_t hidden_size = 192;
@@ -174,7 +173,6 @@ struct Status {
         usable_libraries.insert(library.key());
       }
     }
-    supported_styles.clear();
 
     nlohmann::json all_metas;
     for (const std::string &library_uuid : usable_libraries) {
@@ -193,15 +191,12 @@ struct Status {
                                                                     std::move(decoder_model),
                                                                 }));
 
-      std::unordered_set<int64_t> styles;
       for (auto &meta : metas) {
         for (auto &style : meta["styles"]) {
-          styles.insert(style["id"].get<int64_t>());
-          style["id"] = library_uuid + "_" + std::to_string(style["id"].get<int64_t>());
+          speaker_id_map.insert(std::make_pair(style["id"].get<int64_t>(), library_uuid));
         }
         all_metas.push_back(meta);
       }
-      supported_styles[library_uuid] = styles;
     }
     metas_str = all_metas.dump();
     return true;
@@ -232,7 +227,7 @@ struct Status {
   std::string libraries_str;
   std::string metas_str;
   std::unordered_set<std::string> usable_libraries;
-  std::map<std::string, std::unordered_set<int64_t>> supported_styles;
+  std::map<int64_t, std::string> speaker_id_map;
   std::map<std::string, ModelData> usable_model_data_map;
   std::map<std::string, Models> usable_model_map;
 };
@@ -248,45 +243,17 @@ Ort::Value to_tensor(T *data, const std::array<int64_t, Rank> &shape) {
   return Ort::Value::CreateTensor<T>(status->memory_info, data, count, shape.data(), shape.size());
 }
 
-std::pair<std::string, int64_t> split_library_uuid_and_speaker_num(std::string &speaker_id) {
-  std::vector<std::string> split_path;
-
-  std::string item;
-  for (char ch : speaker_id) {
-    if (ch == '_') {
-      if (!item.empty()) split_path.push_back(item);
-      item.clear();
-    } else {
-      item += ch;
-    }
+/**
+ * 複数モデルのspeaker_idマッピング
+ */
+std::string get_library_uuid_from_speaker_id(int64_t speaker_id) {
+  const auto found = status->speaker_id_map.find(speaker_id);
+  if (found == status->speaker_id_map.end()) {
+    return "";
   }
-  if (!item.empty()) split_path.push_back(item);
-  if (split_path.size() != 2) {
-    throw std::runtime_error(INVALID_SPEAKER_UUID);
-  }
-
-  return std::make_pair(split_path[0], std::stoi(split_path[1]));
+  return found->second;
 }
 
-bool validate_library_uuid(std::string &library_uuid) {
-  if (status->usable_libraries.find(library_uuid) == status->usable_libraries.end()) {
-    error_message = UNKNOWN_LIBRARIES + library_uuid;
-    return false;
-  }
-  return true;
-}
-
-bool validate_speaker_id(std::string library_uuid, int64_t speaker_id) {
-  if (!validate_library_uuid(library_uuid)) {
-    return false;
-  }
-  auto styles = status->supported_styles[library_uuid];
-  if (styles.find(speaker_id) == styles.end()) {
-    error_message = UNKNOWN_STYLE + std::to_string(speaker_id);
-    return false;
-  }
-  return true;
-}
 
 bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads, bool load_all_models) {
   initialized = false;
@@ -336,10 +303,14 @@ bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads, bo
   return true;
 }
 
-bool load_model(const char *speaker_id) {
-  std::string str_speaker_id(speaker_id);
+bool load_model(int64_t speaker_id) {
   try {
-    auto [library_uuid, _] = split_library_uuid_and_speaker_num(str_speaker_id);
+    auto library_uuid = get_library_uuid_from_speaker_id(speaker_id);
+    std::cout << library_uuid << ": " << speaker_id << std::endl;
+    if (library_uuid.empty()) {
+      error_message = UNKNOWN_STYLE + std::to_string(speaker_id);
+      return false;
+    }
     status->load_model(library_uuid);
     return true;
   } catch (std::runtime_error &e) {
@@ -352,10 +323,9 @@ bool load_model(const char *speaker_id) {
   }
 }
 
-bool is_model_loaded(const char *speaker_id) {
-  std::string str_speaker_id(speaker_id);
+bool is_model_loaded(int64_t speaker_id) {
   try {
-    auto [library_uuid, _] = split_library_uuid_and_speaker_num(str_speaker_id);
+    auto library_uuid = get_library_uuid_from_speaker_id(speaker_id);
     return status->usable_model_map.count(library_uuid) > 0;
   } catch (std::runtime_error &e) {
     error_message = e.what();
@@ -377,25 +347,23 @@ const char *supported_devices() {
   return supported_devices_str.c_str();
 }
 
-bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, const char *speaker_id, float *pitch_output,
+bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, int64_t *speaker_id, float *pitch_output,
                       float *duration_output) {
   if (!initialized) {
     error_message = NOT_INITIALIZED_ERR;
     return false;
   }
-  std::string str_speaker_id(speaker_id);
-  std::pair<std::string, int64_t> library_uuid_and_speaker_num;
-  try {
-    library_uuid_and_speaker_num = split_library_uuid_and_speaker_num(str_speaker_id);
-  } catch (std::runtime_error &e) {
-    error_message = e.what();
+  std::string library_uuid = get_library_uuid_from_speaker_id(*speaker_id);
+  if (library_uuid.empty()) {
+    error_message = UNKNOWN_STYLE + std::to_string(*speaker_id);
     return false;
   }
-  std::string library_uuid = library_uuid_and_speaker_num.first;
-  int64_t speaker_num = library_uuid_and_speaker_num.second;
-  if (!validate_speaker_id(library_uuid, speaker_num)) {
+
+  if (!is_model_loaded(*speaker_id)) {
+    error_message = NOT_LOADED_ERR;
     return false;
   }
+
   try {
     const char *inputs[] = {"phonemes", "accents", "speakers"};
     const char *outputs[] = {"pitches", "durations"};
@@ -403,14 +371,9 @@ bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, const
     const std::array<int64_t, 3> output_shape{1, length, 1};
 
     std::array<Ort::Value, 3> input_tensors = {to_tensor(phonemes, input_shape), to_tensor(accents, input_shape),
-                                               to_tensor(&speaker_num, speaker_shape)};
+                                               to_tensor(speaker_id, speaker_shape)};
     std::array<Ort::Value, 2> output_tensors = {to_tensor(pitch_output, output_shape),
                                                 to_tensor(duration_output, output_shape)};
-
-    if (!is_model_loaded(speaker_id)) {
-      error_message = NOT_LOADED_ERR;
-      return false;
-    }
 
     status->usable_model_map.at(library_uuid)
         .variance.Run(Ort::RunOptions{nullptr}, inputs, input_tensors.data(), input_tensors.size(), outputs,
@@ -443,40 +406,33 @@ std::vector<float> length_regulator(int64_t length, const std::vector<float> &em
   return length_regulated_vector;
 }
 
-bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *durations, const char *speaker_id,
+bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *durations, int64_t *speaker_id,
                     float *output) {
   if (!initialized) {
     error_message = NOT_INITIALIZED_ERR;
     return false;
   }
-  std::string str_speaker_id(speaker_id);
-  std::pair<std::string, int64_t> library_uuid_and_speaker_num;
-  try {
-    library_uuid_and_speaker_num = split_library_uuid_and_speaker_num(str_speaker_id);
-  } catch (std::runtime_error &e) {
-    error_message = e.what();
+  std::string library_uuid = get_library_uuid_from_speaker_id(*speaker_id);
+  if (library_uuid.empty()) {
+    error_message = UNKNOWN_STYLE + std::to_string(*speaker_id);
     return false;
   }
-  std::string library_uuid = library_uuid_and_speaker_num.first;
-  int64_t speaker_num = library_uuid_and_speaker_num.second;
-  if (!validate_speaker_id(library_uuid, speaker_num)) {
+
+  if (!is_model_loaded(*speaker_id)) {
+    error_message = NOT_LOADED_ERR;
     return false;
   }
+
   try {
     const std::array<int64_t, 2> input_shape{1, length};
     std::vector<float> embedded_vector(length * hidden_size);
     const std::array<int64_t, 3> embedded_shape{1, length, hidden_size};
 
     std::array<Ort::Value, 3> input_tensor = {to_tensor(phonemes, input_shape), to_tensor(pitches, input_shape),
-                                              to_tensor(&speaker_num, speaker_shape)};
+                                              to_tensor(speaker_id, speaker_shape)};
     Ort::Value embedder_tensor = to_tensor(embedded_vector.data(), embedded_shape);
     const char *embedder_inputs[] = {"phonemes", "pitches", "speakers"};
     const char *embedder_outputs[] = {"feature_embedded"};
-
-    if (!is_model_loaded(speaker_id)) {
-      error_message = NOT_LOADED_ERR;
-      return false;
-    }
 
     status->usable_model_map.at(library_uuid)
         .embedder.Run(Ort::RunOptions{nullptr}, embedder_inputs, input_tensor.data(), input_tensor.size(),

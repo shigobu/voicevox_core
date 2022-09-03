@@ -122,7 +122,7 @@ MoraModel make_interrogative_mora(MoraModel last_mora) {
   return interrogative_mora;
 }
 
-std::vector<AccentPhraseModel> SynthesisEngine::create_accent_phrases(std::string text, const char *speaker_id) {
+std::vector<AccentPhraseModel> SynthesisEngine::create_accent_phrases(std::string text, int64_t *speaker_id) {
   if (text.empty()) {
     return {};
   }
@@ -185,14 +185,14 @@ std::vector<AccentPhraseModel> SynthesisEngine::create_accent_phrases(std::strin
 }
 
 std::vector<AccentPhraseModel> SynthesisEngine::replace_mora_data(std::vector<AccentPhraseModel> accent_phrases,
-                                                                  const char *speaker_id) {
+                                                                  int64_t *speaker_id) {
   std::vector<float> pitches;
   std::vector<AccentPhraseModel> changed_accent_phrases = replace_phoneme_length(accent_phrases, speaker_id, pitches);
   return replace_mora_pitch(changed_accent_phrases, speaker_id, pitches.data());
 }
 
 std::vector<AccentPhraseModel> SynthesisEngine::replace_phoneme_length(std::vector<AccentPhraseModel> accent_phrases,
-                                                                       const char *speaker_id,
+                                                                       int64_t *speaker_id,
                                                                        std::vector<float> &pitches) {
   std::vector<MoraModel> flatten_moras;
   std::vector<int64_t> phoneme_id_list;
@@ -236,7 +236,7 @@ std::vector<AccentPhraseModel> SynthesisEngine::replace_phoneme_length(std::vect
 }
 
 std::vector<AccentPhraseModel> SynthesisEngine::replace_mora_pitch(std::vector<AccentPhraseModel> accent_phrases,
-                                                                   const char *speaker_id, float *before_pitches) {
+                                                                   int64_t *speaker_id, float *before_pitches) {
   std::vector<MoraModel> flatten_moras;
   std::vector<int64_t> phoneme_id_list;
   std::vector<int64_t> accent_id_list;
@@ -288,7 +288,7 @@ std::vector<AccentPhraseModel> SynthesisEngine::replace_mora_pitch(std::vector<A
   return accent_phrases;
 }
 
-std::vector<uint8_t> SynthesisEngine::synthesis_wave_format(AudioQueryModel query, const char *speaker_id,
+std::vector<uint8_t> SynthesisEngine::synthesis_wave_format(AudioQueryModel query, int64_t *speaker_id,
                                                             int *binary_size, bool enable_interrogative_upspeak) {
   std::vector<float> wave = synthesis(query, speaker_id, enable_interrogative_upspeak);
 
@@ -364,7 +364,7 @@ std::vector<uint8_t> SynthesisEngine::synthesis_wave_format(AudioQueryModel quer
   return result;
 }
 
-std::vector<float> SynthesisEngine::synthesis(AudioQueryModel query, const char *speaker_id,
+std::vector<float> SynthesisEngine::synthesis(AudioQueryModel query, int64_t *speaker_id,
                                               bool enable_interrogative_upspeak) {
   std::vector<AccentPhraseModel> accent_phrases = query.accent_phrases;
   if (enable_interrogative_upspeak) {

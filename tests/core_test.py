@@ -22,24 +22,21 @@ class TestCore(unittest.TestCase):
         core.initialize(root_dir, False)
         nil = np.array([], np.int64)
         fnil = np.array([], np.float32)
-        unknown_style1 = "test_-1"
-        unknown_style2 = "test1_-1"
+        unknown_style1 = "-1"
+        unknown_style2 = "10"
         with self.assertRaisesRegex(Exception, "Unknown style ID: -1"):
             core.variance_forward(0, nil, nil, unknown_style1)
-        with self.assertRaisesRegex(Exception, "Unknown library UUID: test1"):
+        with self.assertRaisesRegex(Exception, "Unknown style ID: 10"):
             core.variance_forward(0, nil, nil, unknown_style2)
         with self.assertRaisesRegex(Exception, "Unknown style ID: -1"):
             core.decode_forward(0, nil, fnil, fnil, unknown_style1)
-        with self.assertRaisesRegex(Exception, "Unknown library UUID: test1"):
+        with self.assertRaisesRegex(Exception, "Unknown style ID: 10"):
             core.decode_forward(0, nil, fnil, fnil, unknown_style2)
         core.finalize()
 
     def test_metas(self):
         with open(os.path.join(root_dir, "test", "metas.json"), encoding="utf-8") as f:
             metas_json = json.load(f)
-            for meta in metas_json:
-                for style in meta["styles"]:
-                    style["id"] = "test_" + str(style["id"])
             metas = json.dumps(metas_json, sort_keys=True)
         core.initialize(root_dir, False)
         core_metas = json.dumps(json.loads(core.metas()), sort_keys=True)

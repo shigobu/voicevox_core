@@ -18,33 +18,33 @@ SharevoxResultCode sharevox_load_openjtalk_dict(const char *dict_path) {
   return SHAREVOX_RESULT_SUCCEED;
 }
 
-SharevoxResultCode sharevox_tts(const char *text, const char *speaker_id, int *output_binary_size,
+SharevoxResultCode sharevox_tts(const char *text, int64_t speaker_id, int *output_binary_size,
                                 uint8_t **output_wav) {
   if (!engine.is_openjtalk_dict_loaded()) {
     return SHAREVOX_RESULT_NOT_LOADED_OPENJTALK_DICT;
   }
 
-  std::vector<AccentPhraseModel> accent_phrases = engine.create_accent_phrases(std::string(text), speaker_id);
+  std::vector<AccentPhraseModel> accent_phrases = engine.create_accent_phrases(std::string(text), &speaker_id);
   const AudioQueryModel audio_query = {
       accent_phrases, 1.0f, 0.0f, 1.0f, 1.0f, 0.1f, 0.1f, engine.default_sampling_rate, false, "",
   };
 
-  const auto wav = engine.synthesis_wave_format(audio_query, speaker_id, output_binary_size);
+  const auto wav = engine.synthesis_wave_format(audio_query, &speaker_id, output_binary_size);
   auto *wav_heap = new uint8_t[*output_binary_size];
   std::copy(wav.begin(), wav.end(), wav_heap);
   *output_wav = wav_heap;
   return SHAREVOX_RESULT_SUCCEED;
 }
 
-SharevoxResultCode sharevox_tts_from_kana(const char *text, const char *speaker_id, int *output_binary_size,
+SharevoxResultCode sharevox_tts_from_kana(const char *text, int64_t speaker_id, int *output_binary_size,
                                           uint8_t **output_wav) {
   std::vector<AccentPhraseModel> accent_phrases = parse_kana(std::string(text));
-  accent_phrases = engine.replace_mora_data(accent_phrases, speaker_id);
+  accent_phrases = engine.replace_mora_data(accent_phrases, &speaker_id);
   const AudioQueryModel audio_query = {
       accent_phrases, 1.0f, 0.0f, 1.0f, 1.0f, 0.1f, 0.1f, engine.default_sampling_rate, false, "",
   };
 
-  const auto wav = engine.synthesis_wave_format(audio_query, speaker_id, output_binary_size);
+  const auto wav = engine.synthesis_wave_format(audio_query, &speaker_id, output_binary_size);
   auto *wav_heap = new uint8_t[*output_binary_size];
   std::copy(wav.begin(), wav.end(), wav_heap);
   *output_wav = wav_heap;

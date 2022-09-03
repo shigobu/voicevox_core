@@ -34,11 +34,11 @@ int main(int argc, char *argv[]) {
 
   std::cout << "音声生成中..." << std::endl;
 
-  std::string speaker_id = "test_0";
+  int64_t speaker_id = 0;
   int output_binary_size = 0;
   uint8_t *output_wav = nullptr;
 
-  result = sharevox_tts(text.c_str(), speaker_id.c_str(), &output_binary_size, &output_wav);
+  result = sharevox_tts(text.c_str(), speaker_id, &output_binary_size, &output_wav);
   if (result != SHAREVOX_RESULT_SUCCEED) {
     std::cout << sharevox_error_result_to_message(result) << std::endl;
     return 1;

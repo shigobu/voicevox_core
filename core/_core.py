@@ -33,10 +33,10 @@ lib = cdll.LoadLibrary(str(core_dll_path))
 lib.initialize.argtypes = (c_char_p, c_bool, c_int, c_bool)
 lib.initialize.restype = c_bool
 
-lib.load_model.argtypes = (c_char_p,)
+lib.load_model.argtypes = (int64_dim1_type,)
 lib.load_model.restype = c_bool
 
-lib.is_model_loaded.argtypes = (c_char_p,)
+lib.is_model_loaded.argtypes = (int64_dim1_type,)
 lib.is_model_loaded.restype = c_bool
 
 lib.finalize.argtypes = ()
@@ -46,11 +46,11 @@ lib.metas.restype = c_char_p
 lib.supported_devices.restype = c_char_p
 
 lib.variance_forward.argtypes = (
-    c_int64, int64_dim1_type, int64_dim1_type, c_char_p, float32_dim1_type, float32_dim1_type)
+    c_int64, int64_dim1_type, int64_dim1_type, int64_dim1_type, float32_dim1_type, float32_dim1_type)
 lib.variance_forward.restype = c_bool
 
 lib.decode_forward.argtypes = (
-    c_int64, int64_dim1_type, float32_dim1_type, float32_dim1_type, c_char_p, float32_dim1_type)
+    c_int64, int64_dim1_type, float32_dim1_type, float32_dim1_type, int64_dim1_type, float32_dim1_type)
 lib.decode_forward.restype = c_bool
 
 lib.last_error_message.restype = c_char_p
@@ -58,10 +58,10 @@ lib.last_error_message.restype = c_char_p
 lib.sharevox_load_openjtalk_dict.argtypes = (c_char_p,)
 lib.sharevox_load_openjtalk_dict.restype = c_int
 
-lib.sharevox_tts.argtypes = (c_char_p, c_char_p, POINTER(c_int), POINTER(POINTER(c_uint8)))
+lib.sharevox_tts.argtypes = (c_char_p, int64_dim1_type, POINTER(c_int), POINTER(POINTER(c_uint8)))
 lib.sharevox_tts.restype = c_int
 
-lib.sharevox_tts_from_kana.argtypes = (c_char_p, c_char_p, POINTER(c_int), POINTER(POINTER(c_uint8)))
+lib.sharevox_tts_from_kana.argtypes = (c_char_p, int64_dim1_type, POINTER(c_int), POINTER(POINTER(c_uint8)))
 lib.sharevox_tts_from_kana.restype = c_int
 
 lib.sharevox_wav_free.argtypes = (POINTER(c_uint8),)

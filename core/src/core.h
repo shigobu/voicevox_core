@@ -64,7 +64,7 @@ SHAREVOX_CORE_API bool initialize(const char *root_dir_path, bool use_gpu,
  * @detail
  * 必ずしも話者とモデルが1:1対応しているわけではない。
  */
-SHAREVOX_CORE_API bool load_model(const char *speaker_id);
+SHAREVOX_CORE_API bool load_model(int64_t speaker_id);
 
 /**
  * @fn
@@ -72,7 +72,7 @@ SHAREVOX_CORE_API bool load_model(const char *speaker_id);
  * @param speaker_id 話者番号
  * @return ロード済みならtrue、そうでないならfalse
  */
-SHAREVOX_CORE_API bool is_model_loaded(const char *speaker_id);
+SHAREVOX_CORE_API bool is_model_loaded(int64_t speaker_id);
 
 /**
  * @fn
@@ -110,7 +110,7 @@ SHAREVOX_CORE_API const char *supported_devices();
  * @param speaker_id 話者番号
  * @return 音素ごとの長さ・モーラごとの音高
  */
-SHAREVOX_CORE_API bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, const char *speaker_id,
+SHAREVOX_CORE_API bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, int64_t *speaker_id,
                                         float *pitch_output, float *duration_output);
 
 /**
@@ -125,7 +125,7 @@ SHAREVOX_CORE_API bool variance_forward(int64_t length, int64_t *phonemes, int64
  * @return 音声波形
  */
 SHAREVOX_CORE_API bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *durations,
-                                      const char *speaker_id, float *output);
+                                      int64_t *speaker_id, float *output);
 
 /**
  * @fn
@@ -150,7 +150,7 @@ SHAREVOX_CORE_API SharevoxResultCode sharevox_load_openjtalk_dict(const char *di
  * @param output_wav 音声データを出力する先のポインタ。使用が終わったらvoicevox_wav_freeで開放する必要がある
  * @return 結果コード
  */
-SHAREVOX_CORE_API SharevoxResultCode sharevox_tts(const char *text, const char *speaker_id, int *output_binary_size,
+SHAREVOX_CORE_API SharevoxResultCode sharevox_tts(const char *text, int64_t speaker_id, int *output_binary_size,
                                                   uint8_t **output_wav);
 
 /**
@@ -162,7 +162,7 @@ SHAREVOX_CORE_API SharevoxResultCode sharevox_tts(const char *text, const char *
  * @param output_wav 音声データを出力する先のポインタ。使用が終わったらvoicevox_wav_freeで開放する必要がある
  * @return 結果コード
  */
-SHAREVOX_CORE_API SharevoxResultCode sharevox_tts_from_kana(const char *text, const char *speaker_id,
+SHAREVOX_CORE_API SharevoxResultCode sharevox_tts_from_kana(const char *text, int64_t speaker_id,
                                                             int *output_binary_size, uint8_t **output_wav);
 
 /**

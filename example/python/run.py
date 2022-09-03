@@ -6,7 +6,7 @@ import core
 def run(
     use_gpu: bool,
     text: str,
-    speaker_id: str,
+    speaker_id: int,
     root_dir_path: str,
     cpu_num_threads: int,
     openjtalk_dict: str
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--use_gpu", action="store_true")
     parser.add_argument("--text", required=True)
-    parser.add_argument("--speaker_id", type=str, required=True)
+    parser.add_argument("--speaker_id", type=int, required=True)
     parser.add_argument("--root_dir_path", type=str, default="./")
     parser.add_argument("--cpu_num_threads", type=int, default=0)
     parser.add_argument("--openjtalk_dict", type=str, default="open_jtalk_dic_utf_8-1.11")
