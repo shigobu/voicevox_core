@@ -22,8 +22,8 @@ class TestCore(unittest.TestCase):
         core.initialize(root_dir, False)
         nil = np.array([], np.int64)
         fnil = np.array([], np.float32)
-        unknown_style1 = "-1"
-        unknown_style2 = "10"
+        unknown_style1 = np.array([-1], np.int64)
+        unknown_style2 = np.array([10], np.int64)
         with self.assertRaisesRegex(Exception, "Unknown style ID: -1"):
             core.variance_forward(0, nil, nil, unknown_style1)
         with self.assertRaisesRegex(Exception, "Unknown style ID: 10"):
