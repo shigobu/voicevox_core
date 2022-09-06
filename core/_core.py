@@ -33,10 +33,10 @@ lib = cdll.LoadLibrary(str(core_dll_path))
 lib.initialize.argtypes = (c_char_p, c_bool, c_int, c_bool)
 lib.initialize.restype = c_bool
 
-lib.load_model.argtypes = (int64_dim1_type,)
+lib.load_model.argtypes = (c_int64,)
 lib.load_model.restype = c_bool
 
-lib.is_model_loaded.argtypes = (int64_dim1_type,)
+lib.is_model_loaded.argtypes = (c_int64,)
 lib.is_model_loaded.restype = c_bool
 
 lib.finalize.argtypes = ()
@@ -58,10 +58,10 @@ lib.last_error_message.restype = c_char_p
 lib.sharevox_load_openjtalk_dict.argtypes = (c_char_p,)
 lib.sharevox_load_openjtalk_dict.restype = c_int
 
-lib.sharevox_tts.argtypes = (c_char_p, int64_dim1_type, POINTER(c_int), POINTER(POINTER(c_uint8)))
+lib.sharevox_tts.argtypes = (c_char_p, c_int64, POINTER(c_int), POINTER(POINTER(c_uint8)))
 lib.sharevox_tts.restype = c_int
 
-lib.sharevox_tts_from_kana.argtypes = (c_char_p, int64_dim1_type, POINTER(c_int), POINTER(POINTER(c_uint8)))
+lib.sharevox_tts_from_kana.argtypes = (c_char_p, c_int64, POINTER(c_int), POINTER(POINTER(c_uint8)))
 lib.sharevox_tts_from_kana.restype = c_int
 
 lib.sharevox_wav_free.argtypes = (POINTER(c_uint8),)
@@ -79,12 +79,12 @@ def initialize(root_dir_path: str, use_gpu: bool, cpu_num_threads=0, load_all_mo
     if not success:
         raise Exception(lib.last_error_message().decode())
 
-def load_model(speaker_id: str):
+def load_model(speaker_id: int):
     success = lib.load_model(speaker_id)
     if not success:
         raise Exception(lib.last_error_message().decode())
 
-def is_model_loaded(speaker_id: str) -> bool:
+def is_model_loaded(speaker_id: int) -> bool:
     return lib.is_model_loaded(speaker_id)
 
 def metas() -> str:
@@ -95,22 +95,20 @@ def supported_devices() -> str:
     return lib.supported_devices().decode()
 
 
-def variance_forward(length: int, phonemes: array, accents: array, speaker_id: str) -> Tuple[array, array]:
+def variance_forward(length: int, phonemes: array, accents: array, speaker_id: array) -> Tuple[array, array]:
     pitches = numpy.zeros((length, ), dtype=numpy.float32)
     durations = numpy.zeros((length, ), dtype=numpy.float32)
-    speaker_id = create_string_buffer(speaker_id.encode())
     success = lib.variance_forward(length, phonemes, accents, speaker_id, pitches, durations)
     if not success:
         raise Exception(lib.last_error_message().decode())
     return pitches, durations
 
 
-def decode_forward(length: int, phonemes: array, pitches: array, durations: array, speaker_id: str) -> array:
+def decode_forward(length: int, phonemes: array, pitches: array, durations: array, speaker_id: array) -> array:
     wave_size = 0
     for i in range(length):
         wave_size += int(durations[i] * default_sampling_rate)
     output = numpy.zeros((wave_size,), dtype=numpy.float32)
-    speaker_id = create_string_buffer(speaker_id.encode())
     success = lib.decode_forward(
         length, phonemes, pitches, durations, speaker_id, output
     )
@@ -123,7 +121,7 @@ def sharevox_load_openjtalk_dict(dict_path: str):
     if errno != 0:
         raise Exception(lib.sharevox_error_result_to_message(errno).decode())
 
-def sharevox_tts(text: str, speaker_id: str) -> bytes:
+def sharevox_tts(text: str, speaker_id: int) -> bytes:
     output_binary_size = c_int()
     output_wav = POINTER(c_uint8)()
     errno = lib.sharevox_tts(text.encode(), speaker_id, byref(output_binary_size), byref(output_wav))
@@ -134,7 +132,7 @@ def sharevox_tts(text: str, speaker_id: str) -> bytes:
     lib.sharevox_wav_free(output_wav)
     return output
 
-def sharevox_tts_from_kana(text: str, speaker_id: str) -> bytes:
+def sharevox_tts_from_kana(text: str, speaker_id: int) -> bytes:
     output_binary_size = c_int()
     output_wav = POINTER(c_uint8)()
     errno = lib.sharevox_tts_from_kana(text.encode(), speaker_id, byref(output_binary_size), byref(output_wav))
