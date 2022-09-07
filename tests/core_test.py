@@ -10,6 +10,8 @@ root_dir = os.path.join(os.path.dirname(
 
 
 class TestCore(unittest.TestCase):
+    maxDiff = None
+
     def test_initialize_cpu(self):
         core.initialize(root_dir, False)
         core.finalize()
