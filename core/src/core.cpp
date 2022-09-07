@@ -194,6 +194,7 @@ struct Status {
       if (!open_model_files(root_dir_path, library_uuid, variance_model, embedder_model, decoder_model, model_config)) {
         return false;
       }
+      int64_t start_speaker_id = model_config["start_id"].get<int64_t>();
       nlohmann::json metas;
       if (!open_metas(root_dir_path, library_uuid, metas)) {
         return false;
@@ -208,7 +209,9 @@ struct Status {
 
       for (auto &meta : metas) {
         for (auto &style : meta["styles"]) {
-          speaker_id_map.insert(std::make_pair(style["id"].get<int64_t>(), library_uuid));
+          int64_t metas_style_id = start_speaker_id + style["id"].get<int64_t>();
+          style["id"] = metas_style_id;
+          speaker_id_map.insert(std::make_pair(metas_style_id, library_uuid));
         }
         all_metas.push_back(meta);
       }
@@ -385,6 +388,9 @@ bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, int64
     return false;
   }
 
+  int64_t start_speaker_id = status->usable_model_map.at(library_uuid).model_config["start_id"].get<int64_t>();
+  int64_t model_speaker_id = *speaker_id - start_speaker_id;
+
   try {
     const char *inputs[] = {"phonemes", "accents", "speakers"};
     const char *outputs[] = {"pitches", "durations"};
@@ -392,7 +398,7 @@ bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, int64
     const std::array<int64_t, 3> output_shape{1, length, 1};
 
     std::array<Ort::Value, 3> input_tensors = {to_tensor(phonemes, input_shape), to_tensor(accents, input_shape),
-                                               to_tensor(speaker_id, speaker_shape)};
+                                               to_tensor(&model_speaker_id, speaker_shape)};
     std::array<Ort::Value, 2> output_tensors = {to_tensor(pitch_output, output_shape),
                                                 to_tensor(duration_output, output_shape)};
 
@@ -470,13 +476,16 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
     return false;
   }
 
+  int64_t start_speaker_id = status->usable_model_map.at(library_uuid).model_config["start_id"].get<int64_t>();
+  int64_t model_speaker_id = *speaker_id - start_speaker_id;
+
   try {
     const std::array<int64_t, 2> input_shape{1, length};
     std::vector<float> embedded_vector(length * hidden_size);
     const std::array<int64_t, 3> embedded_shape{1, length, hidden_size};
 
     std::array<Ort::Value, 3> input_tensor = {to_tensor(phonemes, input_shape), to_tensor(pitches, input_shape),
-                                              to_tensor(speaker_id, speaker_shape)};
+                                              to_tensor(&model_speaker_id, speaker_shape)};
     Ort::Value embedder_tensor = to_tensor(embedded_vector.data(), embedded_shape);
     const char *embedder_inputs[] = {"phonemes", "pitches", "speakers"};
     const char *embedder_outputs[] = {"feature_embedded"};
