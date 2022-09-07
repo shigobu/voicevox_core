@@ -37,7 +37,11 @@ class TestCore(unittest.TestCase):
     def test_metas(self):
         with open(os.path.join(root_dir, "test", "metas.json"), encoding="utf-8") as f:
             metas_json = json.load(f)
-            metas = json.dumps(metas_json, sort_keys=True)
+        with open(os.path.join(root_dir, "gaussian_test", "metas.json"), encoding="utf-8") as f:
+            gaussian_metas_json = json.load(f)
+            gaussian_metas_json[0]["styles"][0]["id"] = 1
+            metas_json += gaussian_metas_json
+        metas = json.dumps(metas_json, sort_keys=True)
         core.initialize(root_dir, False)
         core_metas = json.dumps(json.loads(core.metas()), sort_keys=True)
         core.finalize()
