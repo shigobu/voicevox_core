@@ -343,6 +343,10 @@ bool load_model(int64_t speaker_id) {
 bool is_model_loaded(int64_t speaker_id) {
   try {
     auto library_uuid = get_library_uuid_from_speaker_id(speaker_id);
+    if (library_uuid.empty()) {
+      error_message = UNKNOWN_STYLE + std::to_string(speaker_id);
+      return false;
+    }
     return status->usable_model_map.count(library_uuid) > 0;
   } catch (std::runtime_error &e) {
     error_message = e.what();
