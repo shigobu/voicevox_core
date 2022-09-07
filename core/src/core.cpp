@@ -435,15 +435,17 @@ std::vector<float> length_regulator(int64_t length, std::vector<float> &embedded
 
 std::vector<float> gaussian_upsampling(int64_t length, std::vector<float> &embedded_vector, float *durations) {
   int64_t new_size = 0;
+  std::vector<int64_t> int_durations(length);
   for (int64_t i = 0; i < length; i++) {
     auto regulation_size = (int64_t)(durations[i] * 187.5);  // 48000 / 256 = 187.5
+    int_durations[i] = regulation_size;
     new_size += regulation_size;
   }
 
   const std::array<int64_t, 2> input_shape{1, length};
   const std::array<int64_t, 3> embedded_shape{1, length, hidden_size};
   std::array<Ort::Value, 2> input_tensor = {
-      to_tensor(embedded_vector.data(), embedded_shape), to_tensor(durations, input_shape)
+      to_tensor(embedded_vector.data(), embedded_shape), to_tensor(int_durations.data(), input_shape)
   };
   const char *gaussian_inputs[] = {"embedded_tensor", "durations"};
   const char *gaussian_outputs[] = {"length_regulated_tensor"};
