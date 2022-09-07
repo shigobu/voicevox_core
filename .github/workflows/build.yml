@@ -269,7 +269,7 @@ jobs:
       - name: Set ASSET_NAME env var
         shell: bash
         run: |
-          echo "ASSET_NAME=voicevox_core-${{ matrix.artifact_name }}-${{ env.VERSION }}" >> $GITHUB_ENV
+          echo "ASSET_NAME=sharevox_core-${{ matrix.artifact_name }}-${{ env.VERSION }}" >> $GITHUB_ENV
 
       - name: Organize artifact
         shell: bash
