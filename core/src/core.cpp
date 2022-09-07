@@ -44,24 +44,34 @@ struct ModelData {
   std::vector<unsigned char> variance;
   std::vector<unsigned char> embedder;
   std::vector<unsigned char> decoder;
+  nlohmann::json model_config;
 };
 
 struct Models {
   Ort::Session variance;
   Ort::Session embedder;
   Ort::Session decoder;
+  nlohmann::json model_config;
 };
+
+// ref: https://qiita.com/aokomoriuta/items/949ef50bd21b15d10b76
+constexpr std::uint8_t gaussian_model_data[] = {
+    #include "gaussian_model.txt"
+};
+constexpr auto gaussian_model_size = sizeof(gaussian_model_data) / sizeof(std::remove_extent_t<decltype(gaussian_model_data)>);
 
 bool open_model_files(const std::string &root_dir_path, const std::string library_uuid,
                       std::vector<unsigned char> &variance_model, std::vector<unsigned char> &embedder_model,
-                      std::vector<unsigned char> &decoder_model) {
+                      std::vector<unsigned char> &decoder_model, nlohmann::json &model_config) {
   const std::string variance_model_path = root_dir_path + library_uuid + "/variance_model.onnx";
   const std::string embedder_model_path = root_dir_path + library_uuid + "/embedder_model.onnx";
   const std::string decoder_model_path = root_dir_path + library_uuid + "/decoder_model.onnx";
+  const std::string model_config_path = root_dir_path + library_uuid + "/model_config.json";
   std::ifstream variance_model_file(variance_model_path, std::ios::binary),
       embedder_model_file(embedder_model_path, std::ios::binary),
-      decoder_model_file(decoder_model_path, std::ios::binary);
-  if (!variance_model_file.is_open() || !embedder_model_file.is_open() || !decoder_model_file.is_open()) {
+      decoder_model_file(decoder_model_path, std::ios::binary),
+      model_config_file(model_config_path);
+  if (!variance_model_file.is_open() || !embedder_model_file.is_open() || !decoder_model_file.is_open() || !model_config_file.is_open()) {
     error_message = FAILED_TO_OPEN_MODEL_ERR;
     return false;
   }
@@ -69,6 +79,7 @@ bool open_model_files(const std::string &root_dir_path, const std::string librar
   variance_model = std::vector<unsigned char>(std::istreambuf_iterator<char>(variance_model_file), {});
   embedder_model = std::vector<unsigned char>(std::istreambuf_iterator<char>(embedder_model_file), {});
   decoder_model = std::vector<unsigned char>(std::istreambuf_iterator<char>(decoder_model_file), {});
+  model_config_file >> model_config;
   return true;
 }
 
@@ -160,6 +171,8 @@ struct Status {
       heavy_session_options.AppendExecutionProvider_CUDA(cuda_options);
 #endif
     }
+
+    gaussian_model = Ort::Session(env, gaussian_model_data, gaussian_model_size, light_session_options);
   }
 
   bool load() {
@@ -177,7 +190,8 @@ struct Status {
     nlohmann::json all_metas;
     for (const std::string &library_uuid : usable_libraries) {
       std::vector<unsigned char> variance_model, embedder_model, decoder_model;
-      if (!open_model_files(root_dir_path, library_uuid, variance_model, embedder_model, decoder_model)) {
+      nlohmann::json model_config;
+      if (!open_model_files(root_dir_path, library_uuid, variance_model, embedder_model, decoder_model, model_config)) {
         return false;
       }
       nlohmann::json metas;
@@ -189,6 +203,7 @@ struct Status {
                                                                     std::move(variance_model),
                                                                     std::move(embedder_model),
                                                                     std::move(decoder_model),
+                                                                    std::move(model_config),
                                                                 }));
 
       for (auto &meta : metas) {
@@ -212,6 +227,7 @@ struct Status {
                                                              std::move(variance),
                                                              std::move(embedder),
                                                              std::move(decoder),
+                                                             std::move(model_data.model_config),
                                                          }));
     usable_model_data_map.erase(library_uuid);
   }
@@ -220,6 +236,8 @@ struct Status {
   Ort::SessionOptions light_session_options;  // 軽いモデルはこちらを使う
   Ort::SessionOptions heavy_session_options;  // 重いモデルはこちらを使う
   Ort::MemoryInfo memory_info;
+
+  Ort::Session gaussian_model = Ort::Session(nullptr);
 
   Ort::Env env{ORT_LOGGING_LEVEL_ERROR};
 
@@ -306,7 +324,6 @@ bool initialize(const char *root_dir_path, bool use_gpu, int cpu_num_threads, bo
 bool load_model(int64_t speaker_id) {
   try {
     auto library_uuid = get_library_uuid_from_speaker_id(speaker_id);
-    std::cout << library_uuid << ": " << speaker_id << std::endl;
     if (library_uuid.empty()) {
       error_message = UNKNOWN_STYLE + std::to_string(speaker_id);
       return false;
@@ -391,7 +408,7 @@ bool variance_forward(int64_t length, int64_t *phonemes, int64_t *accents, int64
   return true;
 }
 
-std::vector<float> length_regulator(int64_t length, const std::vector<float> &embedded_vector, const float *durations) {
+std::vector<float> length_regulator(int64_t length, std::vector<float> &embedded_vector, float *durations) {
   std::vector<float> length_regulated_vector;
   for (int64_t i = 0; i < length; i++) {
     auto regulation_size = (int64_t)(durations[i] * 187.5);  // 48000 / 256 = 187.5
@@ -403,6 +420,32 @@ std::vector<float> length_regulator(int64_t length, const std::vector<float> &em
       }
     }
   }
+  return length_regulated_vector;
+}
+
+std::vector<float> gaussian_upsampling(int64_t length, std::vector<float> &embedded_vector, float *durations) {
+  int64_t new_size = 0;
+  for (int64_t i = 0; i < length; i++) {
+    auto regulation_size = (int64_t)(durations[i] * 187.5);  // 48000 / 256 = 187.5
+    new_size += regulation_size;
+  }
+
+  const std::array<int64_t, 2> input_shape{1, length};
+  const std::array<int64_t, 3> embedded_shape{1, length, hidden_size};
+  std::array<Ort::Value, 2> input_tensor = {
+      to_tensor(embedded_vector.data(), embedded_shape), to_tensor(durations, input_shape)
+  };
+  const char *gaussian_inputs[] = {"embedded_tensor", "durations"};
+  const char *gaussian_outputs[] = {"length_regulated_tensor"};
+
+  int64_t vector_size = new_size * hidden_size;
+  std::vector<float> length_regulated_vector(vector_size, 0);
+  const std::array<int64_t, 3> length_regulated_shape{1, new_size, hidden_size};
+  Ort::Value length_regulated_tensor = to_tensor(length_regulated_vector.data(), length_regulated_shape);
+
+  status->gaussian_model.Run(Ort::RunOptions{nullptr}, gaussian_inputs, input_tensor.data(), input_tensor.size(),
+                             gaussian_outputs, &length_regulated_tensor, 1);
+
   return length_regulated_vector;
 }
 
@@ -438,7 +481,16 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
         .embedder.Run(Ort::RunOptions{nullptr}, embedder_inputs, input_tensor.data(), input_tensor.size(),
                       embedder_outputs, &embedder_tensor, 1);
 
-    std::vector<float> length_regulated_vector = length_regulator(length, embedded_vector, durations);
+    const std::string length_regulator_type = status->usable_model_map.at(library_uuid).model_config["length_regulator"].get<std::string>();
+    std::vector<float> length_regulated_vector;
+    if (length_regulator_type == "normal") {
+      length_regulated_vector = length_regulator(length, embedded_vector, durations);
+    } else if (length_regulator_type == "gaussian") {
+      length_regulated_vector = gaussian_upsampling(length, embedded_vector, durations);
+    } else {
+      throw std::runtime_error("unknown length regulator type, please check model_config.json");
+    }
+
     const int64_t new_length = length_regulated_vector.size() / hidden_size;
     const int64_t output_size = new_length * 256;
     const std::array<int64_t, 3> length_regulated_shape{1, new_length, hidden_size};
@@ -457,6 +509,9 @@ bool decode_forward(int64_t length, int64_t *phonemes, float *pitches, float *du
   } catch (const Ort::Exception &e) {
     error_message = ONNX_ERR;
     error_message += e.what();
+    return false;
+  } catch (std::runtime_error &e) {
+    error_message = e.what();
     return false;
   }
 
