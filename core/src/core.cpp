@@ -11,7 +11,6 @@
 #include <string>
 #include <unordered_set>
 #include <iostream>
-#include <codecvt>
 #include "nlohmann/json.hpp"
 
 #ifndef SHAREVOX_CORE_EXPORTS
@@ -31,6 +30,7 @@
 #define UNKNOWN_STYLE "Unknown style ID: "
 
 #if defined(_WIN32) && !defined(__CYGWIN__)
+#include <Windows.h>
 #define WPATH(path) (utf8_to_wide(path).c_str())
 #else
 #define WPATH(path) (path)
@@ -60,10 +60,19 @@ struct Models {
   nlohmann::json model_config;
 };
 
+// ref: https://nekko1119.hatenablog.com/entry/2017/01/02/054629
+#if defined(_WIN32) && !defined(__CYGWIN__)
 std::wstring utf8_to_wide(std::string const& src) {
-  std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-  return converter.from_bytes(src);
+  auto const dest_size = ::MultiByteToWideChar(CP_UTF8, 0U, src.data(), -1, nullptr, 0U);
+  std::vector<wchar_t> dest(dest_size, L'\0');
+  if (::MultiByteToWideChar(CP_UTF8, 0U, src.data(), -1, dest.data(), dest.size()) == 0) {
+    throw std::system_error{static_cast<int>(::GetLastError()), std::system_category()};
+  }
+  dest.resize(std::char_traits<wchar_t>::length(dest.data()));
+  dest.shrink_to_fit();
+  return std::wstring(dest.begin(), dest.end());
 }
+#endif
 
 // ref: https://qiita.com/aokomoriuta/items/949ef50bd21b15d10b76
 constexpr std::uint8_t gaussian_model_data[] = {
