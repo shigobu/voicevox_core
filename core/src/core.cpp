@@ -79,9 +79,9 @@ bool open_model_files(const std::string &root_dir_path, const std::string librar
   const std::string decoder_model_path = root_dir_path + library_uuid + "/decoder_model.onnx";
   const std::string model_config_path = root_dir_path + library_uuid + "/model_config.json";
   std::ifstream variance_model_file(WPATH(variance_model_path), std::ios::binary),
-      embedder_model_file(embedder_model_path, std::ios::binary),
-      decoder_model_file(decoder_model_path, std::ios::binary),
-      model_config_file(model_config_path);
+      embedder_model_file(WPATH(embedder_model_path), std::ios::binary),
+      decoder_model_file(WPATH(decoder_model_path), std::ios::binary),
+      model_config_file(WPATH(model_config_path));
   if (!variance_model_file.is_open() || !embedder_model_file.is_open() || !decoder_model_file.is_open() || !model_config_file.is_open()) {
     error_message = FAILED_TO_OPEN_MODEL_ERR;
     return false;
